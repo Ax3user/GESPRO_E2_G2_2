@@ -23,11 +23,23 @@ def get_tasks():
     return jsonify(tasks)
 
 @app.route("/tasks", methods=["POST"])
+@app.route("/tasks", methods=["POST"])
 def create_task():
     global next_id
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+
+    if not data:
+        return jsonify(error="Body JSON requerido. Ej: {'title':'Mi tarea'}"), 400
+
     title = str(data.get("title", "")).strip()
     status = str(data.get("status", "TODO")).strip().upper()
+
+    if not title:
+        return jsonify(error="El título no puede estar vacío."), 400
+
+    allowed = {"TODO", "IN_PROGRESS", "DONE"}
+    if status not in allowed:
+        return jsonify(error=f"Estado inválido. Usa uno de: {sorted(list(allowed))}"), 400
 
     new_task = {"id": next_id, "title": title, "status": status}
     tasks.append(new_task)
