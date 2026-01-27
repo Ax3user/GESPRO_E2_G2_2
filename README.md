@@ -24,12 +24,19 @@ correcto de Scrum, la organización del trabajo y la colaboración en equipo.
 
 ## Estructura del proyecto
 GESPRO_G2_E2/
+
 ├── backend/
+
 │ └── app.py
+
 ├── frontend/
+
 │ └── index.html
+
 ├── docs/
+
 └── README.md
+
 ## Requisitos
 - Anaconda / Miniconda
 - Python 3.13
