@@ -6,6 +6,16 @@
 </head>
 <body>
   <h1>Gestor de tareas</h1>
-  <p>Frontend mínimo funcionando.</p>
+  <button id="btn">Probar /health</button>
+  <pre id="out">Pulsa el botón…</pre>
+
+  <script>
+    const out = document.getElementById("out");
+    document.getElementById("btn").addEventListener("click", async () => {
+      out.textContent = "Consultando...";
+      const res = await fetch("http://127.0.0.1:5000/health");
+      out.textContent = JSON.stringify(await res.json(), null, 2);
+    });
+  </script>
 </body>
 </html>
