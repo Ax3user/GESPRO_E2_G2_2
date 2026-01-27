@@ -9,13 +9,31 @@
   <button id="btn">Probar /health</button>
   <pre id="out">Pulsa el botón…</pre>
 
+<button id="btnTasks">Cargar tareas</button>
+<ul id="list"></ul>
+
+
   <script>
-    const out = document.getElementById("out");
-    document.getElementById("btn").addEventListener("click", async () => {
-      out.textContent = "Consultando...";
-      const res = await fetch("http://127.0.0.1:5000/health");
-      out.textContent = JSON.stringify(await res.json(), null, 2);
+  const out = document.getElementById("out");
+  const list = document.getElementById("list");
+
+  document.getElementById("btn").addEventListener("click", async () => {
+    out.textContent = "Consultando...";
+    const res = await fetch("http://127.0.0.1:5000/health");
+    out.textContent = JSON.stringify(await res.json(), null, 2);
+  });
+
+  document.getElementById("btnTasks").addEventListener("click", async () => {
+    list.innerHTML = "<li>Cargando...</li>";
+    const res = await fetch("http://127.0.0.1:5000/tasks");
+    const data = await res.json();
+    list.innerHTML = "";
+    data.forEach(t => {
+      const li = document.createElement("li");
+      li.textContent = `#${t.id} ${t.title} [${t.status}]`;
+      list.appendChild(li);
     });
-  </script>
+  });
+</script>
 </body>
 </html>
