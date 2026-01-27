@@ -11,5 +11,10 @@ next_id = 1
 def health():
     return jsonify(status="ok", message="Backend running", tasks_count=len(tasks))
 
+@app.route("/tasks", methods=["GET"])
+def get_tasks():
+    return jsonify(tasks)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
