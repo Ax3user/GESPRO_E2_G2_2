@@ -1,39 +1,407 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Gestor de tareas</title>
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --border:#e6e8ef;
+      --text:#101828;
+      --muted:#667085;
+      --shadow: 0 1px 2px rgba(16,24,40,.06), 0 2px 8px rgba(16,24,40,.06);
+
+      --todo:#eef2ff;
+      --inprog:#fff4cc;
+      --done:#e8f7ee;
+
+      --pill:#f2f4f7;
+      --primary:#2e6cff;
+      --danger:#d92d20;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color:var(--text);
+      background:var(--bg);
+    }
+
+    .wrap{max-width:1180px; margin:24px auto; padding:0 16px;}
+    h1{font-size:28px; margin:0 0 14px 0;}
+    .section{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:14px;
+      box-shadow:var(--shadow);
+      padding:16px;
+      margin-bottom:16px;
+    }
+    .section-title{
+      font-size:16px;
+      margin:0 0 12px 0;
+      color:var(--text);
+      font-weight:800;
+    }
+
+    /* Form */
+    .form-grid{
+      display:grid;
+      grid-template-columns: 1fr 170px 1fr 110px;
+      gap:10px;
+      align-items:center;
+    }
+    .input, .select, .btn{
+      height:40px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      padding:0 12px;
+      font-size:14px;
+      background:#fff;
+      outline:none;
+    }
+    .input:focus, .select:focus{border-color:rgba(46,108,255,.55); box-shadow:0 0 0 3px rgba(46,108,255,.12);}
+    .btn{
+      cursor:pointer;
+      background:var(--primary);
+      color:white;
+      font-weight:800;
+      border:none;
+    }
+    .btn:disabled{opacity:.55; cursor:not-allowed;}
+    .helper{
+      margin-top:10px;
+      font-size:13px;
+      color:var(--muted);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .msg{
+      font-weight:900;
+    }
+    .msg.ok{color:#067647;}
+    .msg.err{color:var(--danger);}
+
+    /* Board */
+    .board{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap:14px;
+    }
+    .col{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:14px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height:320px;
+    }
+    .col-head{
+      padding:12px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      border-bottom:1px solid var(--border);
+      font-weight:900;
+      letter-spacing:.2px;
+    }
+    .badge{
+      font-size:12px;
+      font-weight:900;
+      padding:3px 10px;
+      border-radius:999px;
+      border:1px solid rgba(16,24,40,.10);
+      background:var(--pill);
+      color:var(--text);
+    }
+    .col.todo .col-head{background:var(--todo);}
+    .col.inprog .col-head{background:var(--inprog);}
+    .col.done .col-head{background:var(--done);}
+
+    .cards{
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      flex:1;
+    }
+    .task{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 10px;
+      box-shadow: 0 1px 2px rgba(16,24,40,.05);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .task-title{
+      margin:0;
+      font-size:14px;
+      font-weight:800;
+      line-height:1.25;
+    }
+    .task-meta{
+      margin-top:6px;
+      font-size:12px;
+      color:var(--muted);
+      font-weight:800;
+    }
+    .mini{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .chip{
+      font-size:12px;
+      font-weight:900;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid rgba(16,24,40,.10);
+      background:#fff;
+      color:var(--text);
+      white-space:nowrap;
+    }
+    .chip.todo{background:var(--todo);}
+    .chip.inprog{background:var(--inprog);}
+    .chip.done{background:var(--done);}
+    .empty{
+      color:var(--muted);
+      font-weight:800;
+      font-size:13px;
+      padding:8px 2px;
+    }
+
+    @media (max-width: 980px){
+      .form-grid{grid-template-columns: 1fr 170px; grid-auto-rows:auto;}
+      .board{grid-template-columns:1fr;}
+      .col{min-height:unset;}
+    }
+  </style>
 </head>
 <body>
-  <h1>Gestor de tareas</h1>
-  <button id="btn">Probar /health</button>
-  <pre id="out">Pulsa el botón…</pre>
+  <div class="wrap">
+    <h1>Gestor de tareas</h1>
 
-<button id="btnTasks">Cargar tareas</button>
-<ul id="list"></ul>
+    <!-- Nueva tarea -->
+    <div class="section">
+      <div class="section-title">Nueva tarea</div>
 
+      <form id="taskForm" class="form-grid">
+        <input id="title" class="input" type="text" placeholder="Título de la tarea" />
+        <select id="status" class="select" title="Estado">
+          <option value="TODO">TODO</option>
+          <option value="IN_PROGRESS">IN_PROGRESS</option>
+          <option value="DONE">DONE</option>
+        </select>
+        <input id="assigned" class="input" type="text" placeholder="Asignado (opcional)" />
+        <button id="btnCreate" class="btn" type="submit">Crear</button>
+      </form>
 
-  <script>
-  const out = document.getElementById("out");
-  const list = document.getElementById("list");
+      <div class="helper">
+        <div id="msg" class="msg"></div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button id="btnHealth" class="input" style="width:auto; cursor:pointer;">Probar /health</button>
+          <button id="btnRefresh" class="input" style="width:auto; cursor:pointer;">Recargar tablero</button>
+        </div>
+      </div>
+      <pre id="healthOut" style="display:none; margin-top:10px; background:#f7f7f7; padding:10px; border-radius:10px; overflow:auto;"></pre>
+    </div>
 
-  document.getElementById("btn").addEventListener("click", async () => {
-    out.textContent = "Consultando...";
-    const res = await fetch("http://127.0.0.1:5000/health");
-    out.textContent = JSON.stringify(await res.json(), null, 2);
+    <!-- Tablero -->
+    <div class="section">
+      <div class="section-title">Tablero</div>
+
+      <div class="board">
+        <div class="col todo">
+          <div class="col-head">
+            <span class="badge">TODO</span>
+            <span id="countTodo" class="badge">0</span>
+          </div>
+          <div id="todoCol" class="cards"></div>
+        </div>
+
+        <div class="col inprog">
+          <div class="col-head">
+            <span class="badge">IN_PROGRESS</span>
+            <span id="countInProg" class="badge">0</span>
+          </div>
+          <div id="inprogCol" class="cards"></div>
+        </div>
+
+        <div class="col done">
+          <div class="col-head">
+            <span class="badge">DONE</span>
+            <span id="countDone" class="badge">0</span>
+          </div>
+          <div id="doneCol" class="cards"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const API = "http://127.0.0.1:5000";
+
+  const msg = document.getElementById("msg");
+  const healthOut = document.getElementById("healthOut");
+
+  const todoCol = document.getElementById("todoCol");
+  const inprogCol = document.getElementById("inprogCol");
+  const doneCol = document.getElementById("doneCol");
+
+  const countTodo = document.getElementById("countTodo");
+  const countInProg = document.getElementById("countInProg");
+  const countDone = document.getElementById("countDone");
+
+  const titleInput = document.getElementById("title");
+  const statusSel = document.getElementById("status");
+  const assignedInput = document.getElementById("assigned");
+  const btnCreate = document.getElementById("btnCreate");
+
+  function setMsg(text, type){
+    msg.textContent = text || "";
+    msg.className = "msg " + (type || "");
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function taskCard(t){
+    const status = (t.status || "TODO").toUpperCase();
+    const assigned = (t.assigned || "").trim();
+
+    const chipClass =
+      status === "DONE" ? "done" :
+      status === "IN_PROGRESS" ? "inprog" : "todo";
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "task";
+    wrapper.innerHTML = `
+      <div style="min-width:0;">
+        <p class="task-title">${escapeHtml(t.title)}</p>
+        <div class="task-meta">#${t.id}${assigned ? " • " + escapeHtml(assigned) : ""}</div>
+      </div>
+      <div class="mini">
+        <span class="chip ${chipClass}">${escapeHtml(status)}</span>
+      </div>
+    `;
+    return wrapper;
+  }
+
+  function renderColumn(el, items, emptyText){
+    el.innerHTML = "";
+    if (!items.length){
+      const p = document.createElement("div");
+      p.className = "empty";
+      p.textContent = emptyText;
+      el.appendChild(p);
+      return;
+    }
+    items.forEach(t => el.appendChild(taskCard(t)));
+  }
+
+  async function loadBoard(){
+    setMsg("", "");
+    try{
+      const res = await fetch(`${API}/tasks`);
+      const data = await res.json();
+
+      const list = Array.isArray(data) ? data : [];
+      const todo = list.filter(t => (t.status || "").toUpperCase() === "TODO");
+      const inprog = list.filter(t => (t.status || "").toUpperCase() === "IN_PROGRESS");
+      const done = list.filter(t => (t.status || "").toUpperCase() === "DONE");
+
+      countTodo.textContent = todo.length;
+      countInProg.textContent = inprog.length;
+      countDone.textContent = done.length;
+
+      renderColumn(todoCol, todo, "No hay tareas en TODO.");
+      renderColumn(inprogCol, inprog, "No hay tareas en IN_PROGRESS.");
+      renderColumn(doneCol, done, "No hay tareas en DONE.");
+    }catch(e){
+      setMsg("Error cargando el tablero. Revisa que Flask esté corriendo.", "err");
+      todoCol.innerHTML = inprogCol.innerHTML = doneCol.innerHTML =
+        `<div class="empty">No se pudo conectar al backend.</div>`;
+      countTodo.textContent = countInProg.textContent = countDone.textContent = "0";
+    }
+  }
+
+  document.getElementById("taskForm").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    setMsg("", "");
+
+    const title = titleInput.value.trim();
+    const status = statusSel.value;
+    const assigned = assignedInput.value.trim();
+
+    if (!title){
+      setMsg("El título no puede estar vacío.", "err");
+      return;
+    }
+
+    btnCreate.disabled = true;
+    btnCreate.textContent = "Creando…";
+
+    try{
+      const res = await fetch(`${API}/tasks`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ title, status, assigned })
+      });
+
+      const out = await res.json();
+      if (!res.ok){
+        setMsg(out.error || "Error creando tarea.", "err");
+        return;
+      }
+
+      setMsg(`Tarea creada: #${out.id}`, "ok");
+      titleInput.value = "";
+      assignedInput.value = "";
+      statusSel.value = "TODO";
+      await loadBoard();
+    }catch(e){
+      setMsg("Error conectando con el backend. ¿Está corriendo Flask?", "err");
+    }finally{
+      btnCreate.disabled = false;
+      btnCreate.textContent = "Crear";
+    }
   });
 
-  document.getElementById("btnTasks").addEventListener("click", async () => {
-    list.innerHTML = "<li>Cargando...</li>";
-    const res = await fetch("http://127.0.0.1:5000/tasks");
-    const data = await res.json();
-    list.innerHTML = "";
-    data.forEach(t => {
-      const li = document.createElement("li");
-      li.textContent = `#${t.id} ${t.title} [${t.status}]`;
-      list.appendChild(li);
-    });
+  document.getElementById("btnHealth").addEventListener("click", async () => {
+    healthOut.style.display = "block";
+    healthOut.textContent = "Consultando /health...";
+    try{
+      const res = await fetch(`${API}/health`);
+      const data = await res.json();
+      healthOut.textContent = JSON.stringify(data, null, 2);
+    }catch(e){
+      healthOut.textContent = "Error conectando con el backend.";
+    }
   });
+
+  document.getElementById("btnRefresh").addEventListener("click", loadBoard);
+
+  loadBoard();
 </script>
 </body>
 </html>
