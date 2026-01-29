@@ -209,9 +209,17 @@ function makeTaskDiv(t){
   }
 
   const title = document.createElement("div");
-  title.style.fontWeight = "bold";
-  title.textContent = `#${t.id} ${t.title}`;
-  div.appendChild(title);
+title.style.fontWeight = "bold";
+title.style.cursor = "text";
+title.textContent = `#${t.id} ${t.title}`;
+
+// ✅ Doble click para editar
+title.addEventListener("dblclick", () => {
+  startEditTitle(t.id, t.title);
+});
+
+div.appendChild(title);
+
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -332,6 +340,76 @@ async function moveTask(taskId, newStatus){
 
   setMsg(`Movida: #${data.id} → ${data.status}`, true);
   loadTasks();
+}
+
+async function patchTaskTitle(taskId, newTitle){
+  const res = await fetch(`${API}/tasks/${taskId}`, {
+    method: "PATCH",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ title: newTitle })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    setMsg(data.error || "No se pudo actualizar el título", false);
+    return null;
+  }
+  return data;
+}
+
+function startEditTitle(taskId, currentTitle){
+  // Evita que múltiples ediciones se encimen
+  if (document.getElementById("titleEditor")) return;
+
+  // Busca la tarjeta en el DOM
+  const card = document.querySelector(`.task[data-id="${taskId}"]`);
+  if (!card) return;
+
+  // El primer hijo es el título (como lo construimos)
+  const titleDiv = card.firstChild;
+
+  const input = document.createElement("input");
+  input.id = "titleEditor";
+  input.type = "text";
+  input.value = currentTitle;
+  input.style.width = "100%";
+  input.style.padding = "6px";
+  input.style.marginTop = "6px";
+  input.style.borderRadius = "6px";
+  input.style.border = "1px solid rgba(0,0,0,0.2)";
+
+  // Reemplazamos temporalmente el texto por el input
+  titleDiv.textContent = `#${taskId} `;
+  titleDiv.appendChild(input);
+  input.focus();
+  input.select();
+
+  const cancel = () => {
+    // reconstruye sin guardar
+    loadTasks();
+  };
+
+  const save = async () => {
+    const newTitle = input.value.trim();
+    if (!newTitle) {
+      setMsg("El título no puede estar vacío", false);
+      cancel();
+      return;
+    }
+    const updated = await patchTaskTitle(taskId, newTitle);
+    if (updated) {
+      setMsg(`Título actualizado: #${taskId}`, true);
+      loadTasks();
+    } else {
+      cancel();
+    }
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") save();
+    if (e.key === "Escape") cancel();
+  });
+
+  input.addEventListener("blur", save);
 }
 
 function enableDrop(lane){
