@@ -11,23 +11,39 @@
     input, select, button { padding: 6px; }
     button { cursor: pointer; }
     #msg { font-weight: bold; margin-left: 6px; }
-
     #healthStatus { margin: 0 0 10px 0; font-weight: bold; }
+
+    .wipbar{
+      background: white; padding: 10px 15px; border-radius: 6px; margin: 0 0 18px 0;
+      display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .wip-left{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+    .wip-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+    .wip-count{font-weight:bold;}
+    .small{font-size:12px; color:#555;}
+
+    .grid2 { display:grid; grid-template-columns: 1fr 2fr; gap: 15px; margin-bottom: 15px; }
+    .card { background:white; border-radius:6px; padding:12px; border:1px solid rgba(0,0,0,0.06); }
+
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid rgba(0,0,0,0.08); padding: 8px; text-align:left; font-size: 14px; }
+    th { font-size: 12px; text-transform: uppercase; color:#444; }
+    .p-row { cursor: grab; user-select:none; }
+    .p-row:active { cursor: grabbing; }
+    .pill { background: rgba(0,0,0,0.06); padding:2px 8px; border-radius:999px; font-weight:bold; font-size:12px; display:inline-block; }
+    .role-po { background: rgba(255, 200, 0, 0.25); }
+    .role-m { background: rgba(0, 120, 255, 0.15); }
+    .role-v { background: rgba(0, 200, 120, 0.18); }
 
     .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
     .col { background: white; padding: 10px; border-radius: 6px; min-height: 340px; }
     .col h3 { text-align: center; margin: 6px 0 10px; }
-
     .lane { padding: 8px; border-radius: 6px; min-height: 240px; }
 
     .task {
-      background: #eee;
-      padding: 10px;
-      border-radius: 6px;
-      margin-bottom: 8px;
-      cursor: grab;
-      user-select: none;
-      border: 1px solid rgba(0,0,0,0.08);
+      background: #eee; padding: 10px; border-radius: 6px; margin-bottom: 8px;
+      cursor: grab; user-select: none; border: 1px solid rgba(0,0,0,0.08);
     }
     .task:active { cursor: grabbing; }
 
@@ -36,28 +52,25 @@
     .done { background: #d1fadf; }
 
     .drop-hover { outline: 2px dashed #333; outline-offset: 4px; }
+    .drop-task-hover { outline: 2px dashed #111; outline-offset: 6px; }
 
     .meta { font-size: 12px; color:#333; margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; }
-    .pill { background: rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,0.08); padding:2px 8px; border-radius:999px; font-weight:bold; }
     .warn { color: #b42318; }
     .ok { color: #067647; }
 
-    .wipbar{
-      background: white;
-      padding: 10px 15px;
-      border-radius: 6px;
-      margin: 0 0 18px 0;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-      border: 1px solid rgba(0,0,0,0.06);
+    .assignees { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
+    .assignee {
+      background: rgba(255,255,255,0.6);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
     }
-    .wip-left{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-    .wip-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-    .wip-count{font-weight:bold;}
-    .small{font-size:12px; color:#555;}
+    .assignee:hover { opacity: 0.85; }
+
+    .hint { font-size: 12px; color:#666; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -71,9 +84,7 @@
     <option value="IN_PROGRESS">IN_PROGRESS</option>
     <option value="DONE">DONE</option>
   </select>
-
   <input id="estimate" type="number" min="0" step="1" placeholder="Estimado (min)" style="width:140px;">
-
   <button onclick="createTask()">Crear</button>
   <button onclick="checkHealth()">Probar /health</button>
   <span id="msg"></span>
@@ -81,13 +92,11 @@
 
 <p id="healthStatus"></p>
 
-<!-- ✅ WIP LIMIT BAR -->
 <div class="wipbar">
   <div class="wip-left">
     <span class="wip-count" id="wipCount">IN_PROGRESS: 0/5</span>
     <span class="small">Límite de WIP (tareas en progreso)</span>
   </div>
-
   <div class="wip-right">
     <label class="small" for="wipLimit">Límite:</label>
     <input id="wipLimit" type="number" min="1" step="1" value="5" style="width:80px;">
@@ -95,20 +104,53 @@
   </div>
 </div>
 
-<div class="board">
-  <div class="col">
-    <h3>TODO</h3>
-    <div class="lane" id="todoLane" data-status="TODO"></div>
+<!-- ✅ Participantes + Tablero -->
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin: 0 0 10px;">Participantes</h3>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+      <input id="pName" placeholder="Nombre" style="flex:1; min-width:140px;">
+      <select id="pRole" style="min-width:160px;">
+        <option value="product_owner">product owner</option>
+        <option value="member" selected>member</option>
+        <option value="visualizer">visualizer</option>
+      </select>
+      <button onclick="addParticipant()">Agregar</button>
+    </div>
+
+    <div class="hint">Arrastra un participante a una tarea para asignarlo.</div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Rol</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="participantsBody"></tbody>
+    </table>
   </div>
 
-  <div class="col">
-    <h3>IN_PROGRESS</h3>
-    <div class="lane" id="progressLane" data-status="IN_PROGRESS"></div>
-  </div>
+  <div class="card">
+    <h3 style="margin: 0 0 10px;">Tablero</h3>
+    <div class="board">
+      <div class="col">
+        <h3>TODO</h3>
+        <div class="lane" id="todoLane" data-status="TODO"></div>
+      </div>
 
-  <div class="col">
-    <h3>DONE</h3>
-    <div class="lane" id="doneLane" data-status="DONE"></div>
+      <div class="col">
+        <h3>IN_PROGRESS</h3>
+        <div class="lane" id="progressLane" data-status="IN_PROGRESS"></div>
+      </div>
+
+      <div class="col">
+        <h3>DONE</h3>
+        <div class="lane" id="doneLane" data-status="DONE"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -122,17 +164,20 @@ const todoLane = document.getElementById("todoLane");
 const progressLane = document.getElementById("progressLane");
 const doneLane = document.getElementById("doneLane");
 
+const participantsBody = document.getElementById("participantsBody");
+
 const wipCountEl = document.getElementById("wipCount");
 const wipLimitInput = document.getElementById("wipLimit");
 
 let draggedTaskId = null;
+let draggedParticipant = null; // {id, name}
 let tasksCache = [];
+let participantsCache = [];
 let tickTimer = null;
 
-// WIP limit (editable por usuario)
 let wipLimit = 5;
 
-// Guardar / cargar WIP limit (opcional pero útil)
+// -------- WIP init --------
 (function initWip(){
   const saved = localStorage.getItem("wipLimit");
   if (saved) {
@@ -177,12 +222,205 @@ function updateWipCounter(){
   return inprogCount;
 }
 
+// ---------------------- Backend calls: participants ----------------------
+async function fetchParticipants(){
+  const res = await fetch(API + "/participants");
+  participantsCache = await res.json();
+}
+
+async function addParticipant(){
+  const name = document.getElementById("pName").value.trim();
+  const role = document.getElementById("pRole").value;
+
+  if (!name) { setMsg("Nombre vacío", false); return; }
+
+  const res = await fetch(API + "/participants", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, role })
+  });
+  const data = await res.json();
+  if (!res.ok) { setMsg(data.error || "Error al agregar participante", false); return; }
+
+  document.getElementById("pName").value = "";
+  setMsg(`Participante agregado: ${data.name}`, true);
+  await loadAll();
+}
+
+async function patchParticipant(pid, payload){
+  const res = await fetch(`${API}/participants/${pid}`, {
+    method: "PATCH",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) { setMsg(data.error || "Error al actualizar participante", false); return null; }
+  return data;
+}
+
+async function deleteParticipant(pid){
+  const res = await fetch(`${API}/participants/${pid}`, { method:"DELETE" });
+  const data = await res.json();
+  if (!res.ok) { setMsg(data.error || "Error al borrar participante", false); return; }
+  setMsg("Participante eliminado", true);
+  await loadAll();
+}
+
+function rolePillClass(role){
+  if (role === "product_owner") return "role-po";
+  if (role === "visualizer") return "role-v";
+  return "role-m";
+}
+
+function renderParticipants(){
+  participantsBody.innerHTML = "";
+
+  participantsCache.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.className = "p-row";
+    tr.setAttribute("draggable", "true");
+    tr.dataset.pid = p.id;
+
+    // drag participant
+    tr.addEventListener("dragstart", (e) => {
+      draggedParticipant = { id: p.id, name: p.name };
+      e.dataTransfer.effectAllowed = "copy";
+      e.dataTransfer.setData("application/x-participant", JSON.stringify(draggedParticipant));
+    });
+    tr.addEventListener("dragend", () => { draggedParticipant = null; });
+
+    const tdName = document.createElement("td");
+    const nameInput = document.createElement("input");
+    nameInput.value = p.name;
+    nameInput.style.width = "95%";
+    nameInput.addEventListener("blur", async () => {
+      const newName = nameInput.value.trim();
+      if (!newName) { setMsg("Nombre vacío", false); nameInput.value = p.name; return; }
+      if (newName !== p.name) {
+        await patchParticipant(p.id, { name: newName });
+        await loadAll(); // actualiza y evita inconsistencias
+      }
+    });
+    tdName.appendChild(nameInput);
+
+    const tdRole = document.createElement("td");
+    const roleSelect = document.createElement("select");
+    roleSelect.innerHTML = `
+      <option value="product_owner">product owner</option>
+      <option value="member">member</option>
+      <option value="visualizer">visualizer</option>
+    `;
+    roleSelect.value = p.role;
+    roleSelect.addEventListener("change", async () => {
+      await patchParticipant(p.id, { role: roleSelect.value });
+      await loadAll();
+    });
+    tdRole.appendChild(roleSelect);
+
+    const tdDel = document.createElement("td");
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "X";
+    delBtn.title = "Eliminar";
+    delBtn.addEventListener("click", () => deleteParticipant(p.id));
+    tdDel.appendChild(delBtn);
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdRole);
+    tr.appendChild(tdDel);
+
+    participantsBody.appendChild(tr);
+  });
+}
+
+// ---------------------- Backend calls: tasks ----------------------
+async function patchTask(taskId, payload){
+  const res = await fetch(`${API}/tasks/${taskId}`, {
+    method: "PATCH",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) { setMsg(data.error || "Error al actualizar tarea", false); return null; }
+  return data;
+}
+
+async function moveTask(taskId, newStatus){
+  const updated = await patchTask(taskId, { status: newStatus });
+  if (updated) {
+    setMsg(`Movida: #${updated.id} → ${updated.status}`, true);
+    await loadTasks();
+  }
+}
+
+async function assignParticipantToTask(taskId, name){
+  const updated = await patchTask(taskId, { add_assignee: name });
+  if (updated) {
+    setMsg(`Asignado: ${name} → #${taskId}`, true);
+    await loadTasks();
+  }
+}
+
+async function removeAssigneeFromTask(taskId, name){
+  const updated = await patchTask(taskId, { remove_assignee: name });
+  if (updated) {
+    setMsg(`Quitado: ${name} de #${taskId}`, true);
+    await loadTasks();
+  }
+}
+
+// ---------------------- UI: tasks render ----------------------
 function makeTaskDiv(t){
   const div = document.createElement("div");
   div.className = "task";
   div.setAttribute("draggable", "true");
   div.dataset.id = t.id;
 
+  // ✅ Drop target for participant assignment
+  div.addEventListener("dragover", (e) => {
+    // Permitir drop si viene un participante
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.includes("application/x-participant") || draggedParticipant) {
+      e.preventDefault();
+      div.classList.add("drop-task-hover");
+      e.dataTransfer.dropEffect = "copy";
+    }
+  });
+  div.addEventListener("dragleave", () => div.classList.remove("drop-task-hover"));
+  div.addEventListener("drop", async (e) => {
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.includes("application/x-participant") || draggedParticipant) {
+      e.preventDefault();
+      div.classList.remove("drop-task-hover");
+
+      let payload = draggedParticipant;
+      if (!payload) {
+        try {
+          payload = JSON.parse(e.dataTransfer.getData("application/x-participant"));
+        } catch {}
+      }
+      if (payload && payload.name) {
+        await assignParticipantToTask(t.id, payload.name);
+      }
+    }
+  });
+
+  // Drag task (para mover entre columnas)
+  div.addEventListener("dragstart", (e) => {
+    draggedTaskId = Number(div.dataset.id);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(draggedTaskId));
+  });
+  div.addEventListener("dragend", () => { draggedTaskId = null; });
+
+  // Título (doble click para editar)
+  const title = document.createElement("div");
+  title.style.fontWeight = "bold";
+  title.style.cursor = "text";
+  title.textContent = `#${t.id} ${t.title}`;
+  title.addEventListener("dblclick", () => startEditTitle(t.id, t.title));
+  div.appendChild(title);
+
+  // Estimado + tiempos
   const estimateMin = Number(t.estimate_min || 0);
   const estimateSec = estimateMin * 60;
 
@@ -207,19 +445,6 @@ function makeTaskDiv(t){
       compareClass = "warn";
     }
   }
-
-  const title = document.createElement("div");
-title.style.fontWeight = "bold";
-title.style.cursor = "text";
-title.textContent = `#${t.id} ${t.title}`;
-
-// ✅ Doble click para editar
-title.addEventListener("dblclick", () => {
-  startEditTitle(t.id, t.title);
-});
-
-div.appendChild(title);
-
 
   const meta = document.createElement("div");
   meta.className = "meta";
@@ -246,20 +471,33 @@ div.appendChild(title);
 
   div.appendChild(meta);
 
-  div.addEventListener("dragstart", (e) => {
-    draggedTaskId = Number(div.dataset.id);
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(draggedTaskId));
-  });
-  div.addEventListener("dragend", () => { draggedTaskId = null; });
+  // ✅ Assignees (solo nombres)
+  const assignees = Array.isArray(t.assignees) ? t.assignees : [];
+  if (assignees.length > 0) {
+    const wrap = document.createElement("div");
+    wrap.className = "assignees";
+    assignees.forEach(name => {
+      const chip = document.createElement("span");
+      chip.className = "assignee";
+      chip.textContent = name;
+      chip.title = "Click para quitar (opcional)";
+      chip.addEventListener("click", () => removeAssigneeFromTask(t.id, name));
+      wrap.appendChild(chip);
+    });
+    div.appendChild(wrap);
+  } else {
+    const hint = document.createElement("div");
+    hint.className = "hint";
+    hint.textContent = "Tip: arrastra un participante aquí para asignarlo.";
+    div.appendChild(hint);
+  }
 
   return div;
 }
 
 async function loadTasks() {
   const res = await fetch(API + "/tasks");
-  const tasks = await res.json();
-  tasksCache = Array.isArray(tasks) ? tasks : [];
+  tasksCache = await res.json();
 
   todoLane.innerHTML = "";
   progressLane.innerHTML = "";
@@ -279,7 +517,6 @@ async function loadTasks() {
 
 function startTicker(){
   if (tickTimer) clearInterval(tickTimer);
-
   const hasInProgress = tasksCache.some(t => t.status === "IN_PROGRESS" && t.started_at);
   if (!hasInProgress) return;
 
@@ -294,6 +531,7 @@ function startTicker(){
   }, 1000);
 }
 
+// Crear tarea
 async function createTask() {
   setMsg("");
 
@@ -313,9 +551,10 @@ async function createTask() {
   document.getElementById("title").value = "";
   document.getElementById("estimate").value = "";
   setMsg(`Creada: #${data.id}`, true);
-  loadTasks();
+  await loadTasks();
 }
 
+// /health
 async function checkHealth() {
   healthEl.textContent = "Consultando /health...";
   try {
@@ -329,42 +568,16 @@ async function checkHealth() {
   }
 }
 
-async function moveTask(taskId, newStatus){
-  const res = await fetch(`${API}/tasks/${taskId}`, {
-    method: "PATCH",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ status: newStatus })
-  });
-  const data = await res.json();
-  if (!res.ok){ setMsg(data.error || "No se pudo mover la tarea", false); return; }
-
-  setMsg(`Movida: #${data.id} → ${data.status}`, true);
-  loadTasks();
-}
-
+// Edit title inline (doble click)
 async function patchTaskTitle(taskId, newTitle){
-  const res = await fetch(`${API}/tasks/${taskId}`, {
-    method: "PATCH",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ title: newTitle })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    setMsg(data.error || "No se pudo actualizar el título", false);
-    return null;
-  }
-  return data;
+  return await patchTask(taskId, { title: newTitle });
 }
 
 function startEditTitle(taskId, currentTitle){
-  // Evita que múltiples ediciones se encimen
   if (document.getElementById("titleEditor")) return;
-
-  // Busca la tarjeta en el DOM
   const card = document.querySelector(`.task[data-id="${taskId}"]`);
   if (!card) return;
 
-  // El primer hijo es el título (como lo construimos)
   const titleDiv = card.firstChild;
 
   const input = document.createElement("input");
@@ -377,57 +590,40 @@ function startEditTitle(taskId, currentTitle){
   input.style.borderRadius = "6px";
   input.style.border = "1px solid rgba(0,0,0,0.2)";
 
-  // Reemplazamos temporalmente el texto por el input
   titleDiv.textContent = `#${taskId} `;
   titleDiv.appendChild(input);
   input.focus();
   input.select();
 
-  const cancel = () => {
-    // reconstruye sin guardar
-    loadTasks();
-  };
+  const cancel = () => loadTasks();
 
   const save = async () => {
     const newTitle = input.value.trim();
-    if (!newTitle) {
-      setMsg("El título no puede estar vacío", false);
-      cancel();
-      return;
-    }
+    if (!newTitle) { setMsg("El título no puede estar vacío", false); cancel(); return; }
     const updated = await patchTaskTitle(taskId, newTitle);
-    if (updated) {
-      setMsg(`Título actualizado: #${taskId}`, true);
-      loadTasks();
-    } else {
-      cancel();
-    }
+    if (updated) { setMsg(`Título actualizado: #${taskId}`, true); await loadTasks(); }
+    else cancel();
   };
 
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") save();
     if (e.key === "Escape") cancel();
   });
-
   input.addEventListener("blur", save);
 }
 
+// Drag & drop lanes (WIP limit)
 function enableDrop(lane){
   lane.addEventListener("dragover", (e) => {
-    // Si es IN_PROGRESS, aplicamos WIP limit
+    // Solo para mover TAREAS entre columnas:
+    if (draggedTaskId == null) return;
+
     const targetStatus = lane.dataset.status;
     if (targetStatus === "IN_PROGRESS") {
       const inprogCount = tasksCache.filter(t => t.status === "IN_PROGRESS").length;
-
-      // Si ya está al límite, no permitimos drop (salvo si la que arrastras ya estaba IN_PROGRESS)
       const dragged = tasksCache.find(t => t.id === draggedTaskId);
       const draggedWasInProg = dragged && dragged.status === "IN_PROGRESS";
-
-      if (inprogCount >= wipLimit && !draggedWasInProg) {
-        // No prevenimos default -> no se podrá soltar
-        lane.classList.remove("drop-hover");
-        return;
-      }
+      if (inprogCount >= wipLimit && !draggedWasInProg) return;
     }
 
     e.preventDefault();
@@ -438,14 +634,13 @@ function enableDrop(lane){
   lane.addEventListener("dragleave", () => lane.classList.remove("drop-hover"));
 
   lane.addEventListener("drop", (e) => {
-    const targetStatus = lane.dataset.status;
+    if (draggedTaskId == null) return;
 
-    // WIP check final
+    const targetStatus = lane.dataset.status;
     if (targetStatus === "IN_PROGRESS") {
       const inprogCount = tasksCache.filter(t => t.status === "IN_PROGRESS").length;
       const dragged = tasksCache.find(t => t.id === draggedTaskId);
       const draggedWasInProg = dragged && dragged.status === "IN_PROGRESS";
-
       if (inprogCount >= wipLimit && !draggedWasInProg) {
         setMsg(`Límite alcanzado: IN_PROGRESS ${inprogCount}/${wipLimit}`, false);
         lane.classList.remove("drop-hover");
@@ -455,13 +650,7 @@ function enableDrop(lane){
 
     e.preventDefault();
     lane.classList.remove("drop-hover");
-
-    const idFromTransfer = Number(e.dataTransfer.getData("text/plain"));
-    const taskId = draggedTaskId ?? idFromTransfer;
-    const newStatus = lane.dataset.status;
-
-    if (!taskId || !newStatus) return;
-    moveTask(taskId, newStatus);
+    moveTask(draggedTaskId, targetStatus);
   });
 }
 
@@ -469,7 +658,14 @@ enableDrop(todoLane);
 enableDrop(progressLane);
 enableDrop(doneLane);
 
-loadTasks();
+// Cargar todo
+async function loadAll(){
+  await fetchParticipants();
+  renderParticipants();
+  await loadTasks();
+}
+
+loadAll();
 </script>
 
 </body>

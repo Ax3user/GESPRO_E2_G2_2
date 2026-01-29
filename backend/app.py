@@ -5,30 +5,71 @@ import time
 app = Flask(__name__)
 CORS(app)
 
+VALID_STATUSES = ["TODO", "IN_PROGRESS", "DONE"]
+VALID_ROLES = ["product_owner", "member", "visualizer"]
+
 # ---------------------------
 # Persistencia en memoria
 # ---------------------------
 tasks = []
-next_id = 1
-
-# Tareas iniciales (con estimate_min y sin tiempos aún)
-tasks.extend([
-    {"id": 1, "title": "Crear estructura base del repositorio", "status": "DONE", "estimate_min": 30, "started_at": None, "completed_at": None, "actual_sec": None},
-    {"id": 2, "title": "Configurar backend mínimo en Python", "status": "IN_PROGRESS", "estimate_min": 45, "started_at": int(time.time()), "completed_at": None, "actual_sec": None},
-    {"id": 3, "title": "Crear endpoint de prueba (/health)", "status": "TODO", "estimate_min": 20, "started_at": None, "completed_at": None, "actual_sec": None},
-])
-next_id = 4
+participants = []
+next_task_id = 1
+next_participant_id = 1
 
 
 def now_sec() -> int:
     return int(time.time())
 
 
+# ---------------------------
+# Datos iniciales (puedes dejarlos o vaciarlos)
+# ---------------------------
+tasks.extend([
+    {
+        "id": 1,
+        "title": "Crear estructura base del repositorio",
+        "status": "DONE",
+        "estimate_min": 30,
+        "started_at": None,
+        "completed_at": None,
+        "actual_sec": 0,
+        "assignees": []
+    },
+    {
+        "id": 2,
+        "title": "Configurar backend mínimo en Python",
+        "status": "IN_PROGRESS",
+        "estimate_min": 45,
+        "started_at": now_sec(),
+        "completed_at": None,
+        "actual_sec": None,
+        "assignees": []
+    },
+    {
+        "id": 3,
+        "title": "Crear endpoint de prueba (/health)",
+        "status": "TODO",
+        "estimate_min": 20,
+        "started_at": None,
+        "completed_at": None,
+        "actual_sec": None,
+        "assignees": []
+    }
+])
+next_task_id = 4
+
+
+# ---------------------------
+# Health
+# ---------------------------
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify(status="ok", message="Backend running", tasks_count=len(tasks))
 
 
+# ---------------------------
+# Tasks
+# ---------------------------
 @app.route("/tasks", methods=["GET"])
 def get_tasks():
     return jsonify(tasks)
@@ -36,7 +77,7 @@ def get_tasks():
 
 @app.route("/tasks", methods=["POST"])
 def create_task():
-    global next_id
+    global next_task_id
 
     data = request.get_json(silent=True)
     if not data:
@@ -48,66 +89,55 @@ def create_task():
 
     if not title:
         return jsonify(error="El título no puede estar vacío"), 400
-
-    if status not in ["TODO", "IN_PROGRESS", "DONE"]:
+    if status not in VALID_STATUSES:
         return jsonify(error="Estado inválido"), 400
 
-    # Validación simple del estimado
     try:
         estimate_min = int(estimate_min)
         if estimate_min < 0:
             return jsonify(error="El tiempo estimado no puede ser negativo"), 400
     except Exception:
-        return jsonify(error="El tiempo estimado debe ser un número entero (minutos)"), 400
+        return jsonify(error="El tiempo estimado debe ser un entero (minutos)"), 400
 
     t = {
-        "id": next_id,
+        "id": next_task_id,
         "title": title,
         "status": status,
         "estimate_min": estimate_min,
-        "started_at": None,      # epoch seconds
-        "completed_at": None,    # epoch seconds
-        "actual_sec": None       # int seconds
+        "started_at": None,
+        "completed_at": None,
+        "actual_sec": None,
+        "assignees": []
     }
 
-    # Si se crea directamente en IN_PROGRESS o DONE, se setean tiempos coherentes
     if status == "IN_PROGRESS":
         t["started_at"] = now_sec()
     elif status == "DONE":
-        # Si la marcan DONE desde inicio, consideramos 0 segundos reales
         t["started_at"] = now_sec()
         t["completed_at"] = now_sec()
         t["actual_sec"] = 0
 
     tasks.append(t)
-    next_id += 1
+    next_task_id += 1
     return jsonify(t), 201
 
 
-# ✅ Update parcial: status / estimate_min / title (si quieres)
-# En especial: cuando status pasa a IN_PROGRESS arranca cronómetro;
-# cuando pasa a DONE calcula tiempo real vs estimado.
 @app.route("/tasks/<int:task_id>", methods=["PATCH"])
 def update_task(task_id: int):
     data = request.get_json(silent=True) or {}
 
-    # Buscar tarea
-    task = None
-    for t in tasks:
-        if t["id"] == task_id:
-            task = t
-            break
+    task = next((t for t in tasks if t["id"] == task_id), None)
     if not task:
         return jsonify(error="Tarea no encontrada"), 404
 
-    # Actualizar título (opcional)
+    # Update title
     if "title" in data:
         title = str(data.get("title", "")).strip()
         if not title:
             return jsonify(error="El título no puede estar vacío"), 400
         task["title"] = title
 
-    # Actualizar estimado (opcional)
+    # Update estimate
     if "estimate_min" in data:
         try:
             est = int(data.get("estimate_min"))
@@ -115,40 +145,112 @@ def update_task(task_id: int):
                 return jsonify(error="El tiempo estimado no puede ser negativo"), 400
             task["estimate_min"] = est
         except Exception:
-            return jsonify(error="El tiempo estimado debe ser un número entero (minutos)"), 400
+            return jsonify(error="El tiempo estimado debe ser un entero (minutos)"), 400
 
-    # Actualizar status (lo usa el drag & drop)
+    # Assignment (by name)
+    if "add_assignee" in data:
+        name = str(data.get("add_assignee", "")).strip()
+        if not name:
+            return jsonify(error="Nombre de participante inválido"), 400
+        if "assignees" not in task or task["assignees"] is None:
+            task["assignees"] = []
+        if name not in task["assignees"]:
+            task["assignees"].append(name)
+
+    if "remove_assignee" in data:
+        name = str(data.get("remove_assignee", "")).strip()
+        if "assignees" in task and name in task["assignees"]:
+            task["assignees"].remove(name)
+
+    # Update status (drag & drop lanes)
     if "status" in data:
         status = str(data.get("status", "")).strip().upper()
-        if status not in ["TODO", "IN_PROGRESS", "DONE"]:
+        if status not in VALID_STATUSES:
             return jsonify(error="Estado inválido"), 400
 
         prev = task["status"]
         task["status"] = status
 
-        # Lógica de tiempos
         if status == "IN_PROGRESS":
-            # Si entra a IN_PROGRESS por primera vez, arranca
             if task["started_at"] is None:
                 task["started_at"] = now_sec()
-            # Si venía de DONE y lo regresan (raro), limpiamos completed/actual
             if prev == "DONE":
                 task["completed_at"] = None
                 task["actual_sec"] = None
 
         elif status == "DONE":
-            # Si no tenía start, lo arrancamos en ese momento
             if task["started_at"] is None:
                 task["started_at"] = now_sec()
             task["completed_at"] = now_sec()
             task["actual_sec"] = max(0, task["completed_at"] - task["started_at"])
 
         elif status == "TODO":
-            # Si la regresan a TODO, detenemos “finalización”
             task["completed_at"] = None
             task["actual_sec"] = None
 
     return jsonify(task), 200
+
+
+# ---------------------------
+# Participants
+# ---------------------------
+@app.route("/participants", methods=["GET"])
+def get_participants():
+    return jsonify(participants)
+
+
+@app.route("/participants", methods=["POST"])
+def create_participant():
+    global next_participant_id
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify(error="JSON requerido"), 400
+
+    name = str(data.get("name", "")).strip()
+    role = str(data.get("role", "member")).strip().lower()
+
+    if not name:
+        return jsonify(error="El nombre no puede estar vacío"), 400
+    if role not in VALID_ROLES:
+        return jsonify(error="Rol inválido"), 400
+
+    p = {"id": next_participant_id, "name": name, "role": role}
+    participants.append(p)
+    next_participant_id += 1
+    return jsonify(p), 201
+
+
+@app.route("/participants/<int:pid>", methods=["PATCH"])
+def update_participant(pid: int):
+    data = request.get_json(silent=True) or {}
+    p = next((x for x in participants if x["id"] == pid), None)
+    if not p:
+        return jsonify(error="Participante no encontrado"), 404
+
+    if "name" in data:
+        name = str(data.get("name", "")).strip()
+        if not name:
+            return jsonify(error="El nombre no puede estar vacío"), 400
+        p["name"] = name
+
+    if "role" in data:
+        role = str(data.get("role", "")).strip().lower()
+        if role not in VALID_ROLES:
+            return jsonify(error="Rol inválido"), 400
+        p["role"] = role
+
+    return jsonify(p), 200
+
+
+@app.route("/participants/<int:pid>", methods=["DELETE"])
+def delete_participant(pid: int):
+    global participants
+    before = len(participants)
+    participants = [x for x in participants if x["id"] != pid]
+    if len(participants) == before:
+        return jsonify(error="Participante no encontrado"), 404
+    return jsonify(ok=True), 200
 
 
 if __name__ == "__main__":
