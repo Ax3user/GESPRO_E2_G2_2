@@ -85,6 +85,9 @@
     <option value="DONE">DONE</option>
   </select>
   <input id="estimate" type="number" min="0" step="1" placeholder="Estimado (min)" style="width:140px;">
+  <select id="assignOne" style="min-width:180px;">
+    <option value="">Asignar a (opcional)</option>
+  </select>
   <button onclick="createTask()">Crear</button>
   <button onclick="checkHealth()">Probar /health</button>
   <span id="msg"></span>
@@ -112,7 +115,6 @@
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
       <input id="pName" placeholder="Nombre" style="flex:1; min-width:140px;">
       <select id="pRole" style="min-width:160px;">
-        <option value="product_owner">product owner</option>
         <option value="member" selected>member</option>
         <option value="visualizer">visualizer</option>
       </select>
@@ -311,6 +313,12 @@ function renderParticipants(){
       <option value="visualizer">visualizer</option>
     `;
     roleSelect.value = p.role;
+
+    // Si es PO, bloqueamos edición del rol
+    if (p.role === "product_owner") {
+      roleSelect.disabled = true;
+    }
+
     roleSelect.addEventListener("change", async () => {
       await patchParticipant(p.id, { role: roleSelect.value });
       await loadAll();
@@ -331,6 +339,20 @@ function renderParticipants(){
     participantsBody.appendChild(tr);
   });
 }
+
+function renderAssigneeDropdown(){
+  const sel = document.getElementById("assignOne");
+  if (!sel) return;
+
+  sel.innerHTML = `<option value="">Asignar a (opcional)</option>`;
+  participantsCache.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.name; // guardamos el nombre
+    opt.textContent = `${p.name} (${p.role})`;
+    sel.appendChild(opt);
+  });
+}
+
 
 // ---------------------- Backend calls: tasks ----------------------
 async function patchTask(taskId, payload){
@@ -538,6 +560,8 @@ async function createTask() {
   const title = document.getElementById("title").value.trim();
   const status = document.getElementById("status").value;
   const estimateMin = document.getElementById("estimate").value;
+  const assignName = document.getElementById("assignOne").value;
+
 
   const res = await fetch(API + "/tasks", {
     method: "POST",
@@ -550,8 +574,16 @@ async function createTask() {
 
   document.getElementById("title").value = "";
   document.getElementById("estimate").value = "";
+  document.getElementById("assignOne").value = "";
+
   setMsg(`Creada: #${data.id}`, true);
-  await loadTasks();
+
+  // Si seleccionaste a alguien, asignarlo
+  if (assignName) {
+    await assignParticipantToTask(data.id, assignName);
+  } else {
+    await loadTasks();
+  }
 }
 
 // /health
@@ -662,6 +694,7 @@ enableDrop(doneLane);
 async function loadAll(){
   await fetchParticipants();
   renderParticipants();
+  renderAssigneeDropdown();
   await loadTasks();
 }
 

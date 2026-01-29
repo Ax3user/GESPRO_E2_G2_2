@@ -58,6 +58,17 @@ tasks.extend([
 ])
 next_task_id = 4
 
+# ---------------------------
+# Participantes predefinidos
+# ---------------------------
+participants.extend([
+    {"id": 1, "name": "Carlos", "role": "product_owner"},
+    {"id": 2, "name": "Emmanuel", "role": "member"},
+    {"id": 3, "name": "Áxel", "role": "visualizer"},
+])
+next_participant_id = 4
+
+
 
 # ---------------------------
 # Health
@@ -212,14 +223,14 @@ def create_participant():
 
     if not name:
         return jsonify(error="El nombre no puede estar vacío"), 400
-    if role not in VALID_ROLES:
-        return jsonify(error="Rol inválido"), 400
+    # Solo permitimos crear nuevos participantes como member o visualizer
+    if role not in ["member", "visualizer"]:
+        return jsonify(error="Solo se pueden agregar participantes como member o visualizer"), 400
 
     p = {"id": next_participant_id, "name": name, "role": role}
     participants.append(p)
     next_participant_id += 1
     return jsonify(p), 201
-
 
 @app.route("/participants/<int:pid>", methods=["PATCH"])
 def update_participant(pid: int):
@@ -236,8 +247,11 @@ def update_participant(pid: int):
 
     if "role" in data:
         role = str(data.get("role", "")).strip().lower()
-        if role not in VALID_ROLES:
+        # No permitimos asignar product_owner por edición (solo los predefinidos)
+        if role not in ["member", "visualizer", "product_owner"]:
             return jsonify(error="Rol inválido"), 400
+        if role == "product_owner":
+            return jsonify(error="No se puede asignar product_owner a nuevos participantes"), 400
         p["role"] = role
 
     return jsonify(p), 200
