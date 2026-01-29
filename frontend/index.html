@@ -12,10 +12,10 @@
     button { cursor: pointer; }
     #msg { font-weight: bold; margin-left: 6px; }
 
-    #healthStatus { margin: 0 0 18px 0; font-weight: bold; }
+    #healthStatus { margin: 0 0 10px 0; font-weight: bold; }
 
     .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-    .col { background: white; padding: 10px; border-radius: 6px; min-height: 320px; }
+    .col { background: white; padding: 10px; border-radius: 6px; min-height: 340px; }
     .col h3 { text-align: center; margin: 6px 0 10px; }
 
     .lane { padding: 8px; border-radius: 6px; min-height: 240px; }
@@ -41,6 +41,23 @@
     .pill { background: rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,0.08); padding:2px 8px; border-radius:999px; font-weight:bold; }
     .warn { color: #b42318; }
     .ok { color: #067647; }
+
+    .wipbar{
+      background: white;
+      padding: 10px 15px;
+      border-radius: 6px;
+      margin: 0 0 18px 0;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .wip-left{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+    .wip-right{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+    .wip-count{font-weight:bold;}
+    .small{font-size:12px; color:#555;}
   </style>
 </head>
 <body>
@@ -55,7 +72,6 @@
     <option value="DONE">DONE</option>
   </select>
 
-  <!-- ✅ NUEVO: tiempo estimado -->
   <input id="estimate" type="number" min="0" step="1" placeholder="Estimado (min)" style="width:140px;">
 
   <button onclick="createTask()">Crear</button>
@@ -64,6 +80,20 @@
 </div>
 
 <p id="healthStatus"></p>
+
+<!-- ✅ WIP LIMIT BAR -->
+<div class="wipbar">
+  <div class="wip-left">
+    <span class="wip-count" id="wipCount">IN_PROGRESS: 0/5</span>
+    <span class="small">Límite de WIP (tareas en progreso)</span>
+  </div>
+
+  <div class="wip-right">
+    <label class="small" for="wipLimit">Límite:</label>
+    <input id="wipLimit" type="number" min="1" step="1" value="5" style="width:80px;">
+    <button onclick="applyWipLimit()">Aplicar</button>
+  </div>
+</div>
 
 <div class="board">
   <div class="col">
@@ -92,9 +122,38 @@ const todoLane = document.getElementById("todoLane");
 const progressLane = document.getElementById("progressLane");
 const doneLane = document.getElementById("doneLane");
 
+const wipCountEl = document.getElementById("wipCount");
+const wipLimitInput = document.getElementById("wipLimit");
+
 let draggedTaskId = null;
-let tasksCache = [];      // para cronómetro en UI
-let tickTimer = null;     // interval para actualizar tiempos en IN_PROGRESS
+let tasksCache = [];
+let tickTimer = null;
+
+// WIP limit (editable por usuario)
+let wipLimit = 5;
+
+// Guardar / cargar WIP limit (opcional pero útil)
+(function initWip(){
+  const saved = localStorage.getItem("wipLimit");
+  if (saved) {
+    const n = parseInt(saved, 10);
+    if (!isNaN(n) && n >= 1) wipLimit = n;
+  }
+  wipLimitInput.value = wipLimit;
+})();
+
+function applyWipLimit(){
+  const n = parseInt(wipLimitInput.value, 10);
+  if (isNaN(n) || n < 1){
+    setMsg("El límite debe ser un número >= 1", false);
+    wipLimitInput.value = wipLimit;
+    return;
+  }
+  wipLimit = n;
+  localStorage.setItem("wipLimit", String(wipLimit));
+  setMsg(`Límite IN_PROGRESS actualizado a ${wipLimit}`, true);
+  updateWipCounter();
+}
 
 function setMsg(text, ok=true){
   msg.textContent = text || "";
@@ -111,6 +170,13 @@ function fmtDuration(sec){
   return `${s}s`;
 }
 
+function updateWipCounter(){
+  const inprogCount = tasksCache.filter(t => t.status === "IN_PROGRESS").length;
+  wipCountEl.textContent = `IN_PROGRESS: ${inprogCount}/${wipLimit}`;
+  wipCountEl.style.color = (inprogCount > wipLimit) ? "crimson" : "#111";
+  return inprogCount;
+}
+
 function makeTaskDiv(t){
   const div = document.createElement("div");
   div.className = "task";
@@ -120,13 +186,11 @@ function makeTaskDiv(t){
   const estimateMin = Number(t.estimate_min || 0);
   const estimateSec = estimateMin * 60;
 
-  // IN_PROGRESS: cronómetro desde started_at
   let liveSec = null;
   if (t.status === "IN_PROGRESS" && t.started_at) {
     liveSec = Math.floor(Date.now()/1000) - Number(t.started_at);
   }
 
-  // DONE: comparación real vs estimado
   let compareText = "";
   let compareClass = "ok";
   if (t.status === "DONE" && typeof t.actual_sec === "number") {
@@ -174,7 +238,6 @@ function makeTaskDiv(t){
 
   div.appendChild(meta);
 
-  // Drag start/end
   div.addEventListener("dragstart", (e) => {
     draggedTaskId = Number(div.dataset.id);
     e.dataTransfer.effectAllowed = "move";
@@ -202,14 +265,13 @@ async function loadTasks() {
     else if (t.status === "DONE") { div.classList.add("done"); doneLane.appendChild(div); }
   });
 
-  // Arranca/ajusta intervalo para cronómetros
+  updateWipCounter();
   startTicker();
 }
 
 function startTicker(){
   if (tickTimer) clearInterval(tickTimer);
 
-  // Si no hay tareas en IN_PROGRESS, no hace falta interval
   const hasInProgress = tasksCache.some(t => t.status === "IN_PROGRESS" && t.started_at);
   if (!hasInProgress) return;
 
@@ -246,7 +308,6 @@ async function createTask() {
   loadTasks();
 }
 
-// ✅ /health en UI
 async function checkHealth() {
   healthEl.textContent = "Consultando /health...";
   try {
@@ -260,7 +321,6 @@ async function checkHealth() {
   }
 }
 
-// ✅ Drag & drop: al soltar, hacemos PATCH que dispara start/stop en backend
 async function moveTask(taskId, newStatus){
   const res = await fetch(`${API}/tasks/${taskId}`, {
     method: "PATCH",
@@ -276,12 +336,45 @@ async function moveTask(taskId, newStatus){
 
 function enableDrop(lane){
   lane.addEventListener("dragover", (e) => {
+    // Si es IN_PROGRESS, aplicamos WIP limit
+    const targetStatus = lane.dataset.status;
+    if (targetStatus === "IN_PROGRESS") {
+      const inprogCount = tasksCache.filter(t => t.status === "IN_PROGRESS").length;
+
+      // Si ya está al límite, no permitimos drop (salvo si la que arrastras ya estaba IN_PROGRESS)
+      const dragged = tasksCache.find(t => t.id === draggedTaskId);
+      const draggedWasInProg = dragged && dragged.status === "IN_PROGRESS";
+
+      if (inprogCount >= wipLimit && !draggedWasInProg) {
+        // No prevenimos default -> no se podrá soltar
+        lane.classList.remove("drop-hover");
+        return;
+      }
+    }
+
     e.preventDefault();
     lane.classList.add("drop-hover");
     e.dataTransfer.dropEffect = "move";
   });
+
   lane.addEventListener("dragleave", () => lane.classList.remove("drop-hover"));
+
   lane.addEventListener("drop", (e) => {
+    const targetStatus = lane.dataset.status;
+
+    // WIP check final
+    if (targetStatus === "IN_PROGRESS") {
+      const inprogCount = tasksCache.filter(t => t.status === "IN_PROGRESS").length;
+      const dragged = tasksCache.find(t => t.id === draggedTaskId);
+      const draggedWasInProg = dragged && dragged.status === "IN_PROGRESS";
+
+      if (inprogCount >= wipLimit && !draggedWasInProg) {
+        setMsg(`Límite alcanzado: IN_PROGRESS ${inprogCount}/${wipLimit}`, false);
+        lane.classList.remove("drop-hover");
+        return;
+      }
+    }
+
     e.preventDefault();
     lane.classList.remove("drop-hover");
 
@@ -298,7 +391,6 @@ enableDrop(todoLane);
 enableDrop(progressLane);
 enableDrop(doneLane);
 
-// Inicial
 loadTasks();
 </script>
 
