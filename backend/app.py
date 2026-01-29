@@ -1,3 +1,9 @@
+#activate GesPro 
+#install flask
+#pip install flask-cors
+#Run python file
+#Abrir frontend (index) desde archivos en navegador
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
