@@ -7,20 +7,22 @@
     body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 30px; }
     h1 { margin-bottom: 10px; }
 
-    .form { background: white; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
-    input, select, button { padding: 6px; margin-right: 5px; }
+    .form { background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    input, select, button { padding: 6px; }
     button { cursor: pointer; }
-    #msg { margin-left: 10px; font-weight: bold; }
+    #msg { font-weight: bold; margin-left: 6px; }
+
+    #healthStatus { margin: 0 0 18px 0; font-weight: bold; }
 
     .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-    .col { background: white; padding: 10px; border-radius: 6px; min-height: 280px; }
-    .col h3 { text-align: center; margin-top: 5px; }
+    .col { background: white; padding: 10px; border-radius: 6px; min-height: 320px; }
+    .col h3 { text-align: center; margin: 6px 0 10px; }
 
-    .lane { padding: 8px; border-radius: 6px; min-height: 220px; }
+    .lane { padding: 8px; border-radius: 6px; min-height: 240px; }
 
     .task {
       background: #eee;
-      padding: 8px;
+      padding: 10px;
       border-radius: 6px;
       margin-bottom: 8px;
       cursor: grab;
@@ -33,10 +35,12 @@
     .progress { background: #fff4cc; }
     .done { background: #d1fadf; }
 
-    /* Visual cuando estás “encima” con algo arrastrándose */
     .drop-hover { outline: 2px dashed #333; outline-offset: 4px; }
 
-    .hint { color: #666; font-size: 12px; text-align: center; margin-top: 6px; }
+    .meta { font-size: 12px; color:#333; margin-top:6px; display:flex; gap:10px; flex-wrap:wrap; }
+    .pill { background: rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,0.08); padding:2px 8px; border-radius:999px; font-weight:bold; }
+    .warn { color: #b42318; }
+    .ok { color: #067647; }
   </style>
 </head>
 <body>
@@ -50,31 +54,31 @@
     <option value="IN_PROGRESS">IN_PROGRESS</option>
     <option value="DONE">DONE</option>
   </select>
+
+  <!-- ✅ NUEVO: tiempo estimado -->
+  <input id="estimate" type="number" min="0" step="1" placeholder="Estimado (min)" style="width:140px;">
+
   <button onclick="createTask()">Crear</button>
   <button onclick="checkHealth()">Probar /health</button>
   <span id="msg"></span>
 </div>
 
-<p id="healthStatus" style="margin-top:10px; font-weight:bold;"></p>
-
+<p id="healthStatus"></p>
 
 <div class="board">
   <div class="col">
     <h3>TODO</h3>
     <div class="lane" id="todoLane" data-status="TODO"></div>
-    <div class="hint">Arrastra tareas aquí</div>
   </div>
 
   <div class="col">
     <h3>IN_PROGRESS</h3>
     <div class="lane" id="progressLane" data-status="IN_PROGRESS"></div>
-    <div class="hint">Arrastra tareas aquí</div>
   </div>
 
   <div class="col">
     <h3>DONE</h3>
     <div class="lane" id="doneLane" data-status="DONE"></div>
-    <div class="hint">Arrastra tareas aquí</div>
   </div>
 </div>
 
@@ -82,35 +86,101 @@
 const API = "http://127.0.0.1:5000";
 
 const msg = document.getElementById("msg");
+const healthEl = document.getElementById("healthStatus");
+
 const todoLane = document.getElementById("todoLane");
 const progressLane = document.getElementById("progressLane");
 const doneLane = document.getElementById("doneLane");
 
 let draggedTaskId = null;
+let tasksCache = [];      // para cronómetro en UI
+let tickTimer = null;     // interval para actualizar tiempos en IN_PROGRESS
 
 function setMsg(text, ok=true){
   msg.textContent = text || "";
   msg.style.color = ok ? "green" : "crimson";
 }
 
+function fmtDuration(sec){
+  sec = Math.max(0, Math.floor(sec || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 function makeTaskDiv(t){
   const div = document.createElement("div");
   div.className = "task";
-  div.textContent = `#${t.id} ${t.title}`;
   div.setAttribute("draggable", "true");
   div.dataset.id = t.id;
 
-  // Drag start
+  const estimateMin = Number(t.estimate_min || 0);
+  const estimateSec = estimateMin * 60;
+
+  // IN_PROGRESS: cronómetro desde started_at
+  let liveSec = null;
+  if (t.status === "IN_PROGRESS" && t.started_at) {
+    liveSec = Math.floor(Date.now()/1000) - Number(t.started_at);
+  }
+
+  // DONE: comparación real vs estimado
+  let compareText = "";
+  let compareClass = "ok";
+  if (t.status === "DONE" && typeof t.actual_sec === "number") {
+    const realSec = Number(t.actual_sec);
+    const diff = realSec - estimateSec;
+    if (estimateSec === 0) {
+      compareText = `Real: ${fmtDuration(realSec)} (sin estimado)`;
+      compareClass = "ok";
+    } else if (diff <= 0) {
+      compareText = `Estimado: ${fmtDuration(estimateSec)} • Real: ${fmtDuration(realSec)} • ✅ ${fmtDuration(Math.abs(diff))} antes`;
+      compareClass = "ok";
+    } else {
+      compareText = `Estimado: ${fmtDuration(estimateSec)} • Real: ${fmtDuration(realSec)} • ⚠️ ${fmtDuration(diff)} tarde`;
+      compareClass = "warn";
+    }
+  }
+
+  const title = document.createElement("div");
+  title.style.fontWeight = "bold";
+  title.textContent = `#${t.id} ${t.title}`;
+  div.appendChild(title);
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+
+  const pillEst = document.createElement("span");
+  pillEst.className = "pill";
+  pillEst.textContent = `Estimado: ${estimateMin} min`;
+  meta.appendChild(pillEst);
+
+  if (t.status === "IN_PROGRESS") {
+    const pillLive = document.createElement("span");
+    pillLive.className = "pill";
+    pillLive.id = `timer-${t.id}`;
+    pillLive.textContent = `Tiempo real: ${fmtDuration(liveSec || 0)}`;
+    meta.appendChild(pillLive);
+  }
+
+  if (t.status === "DONE") {
+    const pillCmp = document.createElement("span");
+    pillCmp.className = `pill ${compareClass}`;
+    pillCmp.textContent = compareText || "Completada";
+    meta.appendChild(pillCmp);
+  }
+
+  div.appendChild(meta);
+
+  // Drag start/end
   div.addEventListener("dragstart", (e) => {
     draggedTaskId = Number(div.dataset.id);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(draggedTaskId));
   });
-
-  // Drag end
-  div.addEventListener("dragend", () => {
-    draggedTaskId = null;
-  });
+  div.addEventListener("dragend", () => { draggedTaskId = null; });
 
   return div;
 }
@@ -118,25 +188,40 @@ function makeTaskDiv(t){
 async function loadTasks() {
   const res = await fetch(API + "/tasks");
   const tasks = await res.json();
+  tasksCache = Array.isArray(tasks) ? tasks : [];
 
   todoLane.innerHTML = "";
   progressLane.innerHTML = "";
   doneLane.innerHTML = "";
 
-  tasks.forEach(t => {
+  tasksCache.forEach(t => {
     const div = makeTaskDiv(t);
 
-    if (t.status === "TODO") {
-      div.classList.add("todo");
-      todoLane.appendChild(div);
-    } else if (t.status === "IN_PROGRESS") {
-      div.classList.add("progress");
-      progressLane.appendChild(div);
-    } else if (t.status === "DONE") {
-      div.classList.add("done");
-      doneLane.appendChild(div);
-    }
+    if (t.status === "TODO") { div.classList.add("todo"); todoLane.appendChild(div); }
+    else if (t.status === "IN_PROGRESS") { div.classList.add("progress"); progressLane.appendChild(div); }
+    else if (t.status === "DONE") { div.classList.add("done"); doneLane.appendChild(div); }
   });
+
+  // Arranca/ajusta intervalo para cronómetros
+  startTicker();
+}
+
+function startTicker(){
+  if (tickTimer) clearInterval(tickTimer);
+
+  // Si no hay tareas en IN_PROGRESS, no hace falta interval
+  const hasInProgress = tasksCache.some(t => t.status === "IN_PROGRESS" && t.started_at);
+  if (!hasInProgress) return;
+
+  tickTimer = setInterval(() => {
+    const now = Math.floor(Date.now()/1000);
+    tasksCache.forEach(t => {
+      if (t.status === "IN_PROGRESS" && t.started_at) {
+        const el = document.getElementById(`timer-${t.id}`);
+        if (el) el.textContent = `Tiempo real: ${fmtDuration(now - Number(t.started_at))}`;
+      }
+    });
+  }, 1000);
 }
 
 async function createTask() {
@@ -144,25 +229,38 @@ async function createTask() {
 
   const title = document.getElementById("title").value.trim();
   const status = document.getElementById("status").value;
+  const estimateMin = document.getElementById("estimate").value;
 
   const res = await fetch(API + "/tasks", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({title, status})
+    body: JSON.stringify({ title, status, estimate_min: estimateMin })
   });
 
   const data = await res.json();
-  if (!res.ok) {
-    setMsg(data.error || "Error", false);
-    return;
-  }
+  if (!res.ok) { setMsg(data.error || "Error", false); return; }
 
   document.getElementById("title").value = "";
+  document.getElementById("estimate").value = "";
   setMsg(`Creada: #${data.id}`, true);
   loadTasks();
 }
 
-// ✅ Actualizar estado en backend (drag & drop)
+// ✅ /health en UI
+async function checkHealth() {
+  healthEl.textContent = "Consultando /health...";
+  try {
+    const res = await fetch(API + "/health");
+    const data = await res.json();
+    healthEl.textContent = `Backend: ${data.status} – ${data.message} (tareas: ${data.tasks_count})`;
+    healthEl.style.color = "green";
+  } catch (e) {
+    healthEl.textContent = "No se pudo conectar con el backend";
+    healthEl.style.color = "crimson";
+  }
+}
+
+// ✅ Drag & drop: al soltar, hacemos PATCH que dispara start/stop en backend
 async function moveTask(taskId, newStatus){
   const res = await fetch(`${API}/tasks/${taskId}`, {
     method: "PATCH",
@@ -170,46 +268,23 @@ async function moveTask(taskId, newStatus){
     body: JSON.stringify({ status: newStatus })
   });
   const data = await res.json();
-  if (!res.ok){
-    setMsg(data.error || "No se pudo mover la tarea", false);
-    return;
-  }
+  if (!res.ok){ setMsg(data.error || "No se pudo mover la tarea", false); return; }
+
   setMsg(`Movida: #${data.id} → ${data.status}`, true);
   loadTasks();
 }
 
-async function checkHealth() {
-  const el = document.getElementById("healthStatus");
-  el.textContent = "Consultando /health...";
-
-  try {
-    const res = await fetch(API + "/health");
-    const data = await res.json();
-    el.textContent = `Backend: ${data.status} – ${data.message} (tareas: ${data.tasks_count})`;
-    el.style.color = "green";
-  } catch (e) {
-    el.textContent = "No se pudo conectar con el backend";
-    el.style.color = "crimson";
-  }
-}
-
-// ✅ Hacer que las columnas acepten drop
 function enableDrop(lane){
   lane.addEventListener("dragover", (e) => {
-    e.preventDefault(); // necesario para permitir drop
+    e.preventDefault();
     lane.classList.add("drop-hover");
     e.dataTransfer.dropEffect = "move";
   });
-
-  lane.addEventListener("dragleave", () => {
-    lane.classList.remove("drop-hover");
-  });
-
+  lane.addEventListener("dragleave", () => lane.classList.remove("drop-hover"));
   lane.addEventListener("drop", (e) => {
     e.preventDefault();
     lane.classList.remove("drop-hover");
 
-    // Recupera id arrastrado
     const idFromTransfer = Number(e.dataTransfer.getData("text/plain"));
     const taskId = draggedTaskId ?? idFromTransfer;
     const newStatus = lane.dataset.status;
@@ -226,7 +301,6 @@ enableDrop(doneLane);
 // Inicial
 loadTasks();
 </script>
-
 
 </body>
 </html>
