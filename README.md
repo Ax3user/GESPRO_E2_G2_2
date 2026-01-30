@@ -1,5 +1,6 @@
 # GESPRO_E2_G2_2
 Tec en Burgos RETURN
+Miembros: Álvaro Mardóniz, Emmanuel Salazar, Jessica Juaristi, Jimena Sandoval y Carlos Herrera
 
 
 # GESPRO_G2_E2_2 – Gestor de Tareas
