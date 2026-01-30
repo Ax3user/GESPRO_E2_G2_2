@@ -13,6 +13,14 @@
     #msg { font-weight: bold; margin-left: 6px; }
     #healthStatus { margin: 0 0 10px 0; font-weight: bold; }
 
+    /* LOGIN */
+    #loginBox{
+      background:white; padding:20px; border-radius:6px; width:320px; margin-bottom:20px;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+    #loginBox h3{ margin: 0 0 10px; }
+    #loginBox select{ width:100%; margin-bottom:10px; }
+
     .wipbar{
       background: white; padding: 10px 15px; border-radius: 6px; margin: 0 0 18px 0;
       display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
@@ -46,6 +54,10 @@
       cursor: grab; user-select: none; border: 1px solid rgba(0,0,0,0.08);
     }
     .task:active { cursor: grabbing; }
+    .task.disabled{
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
 
     .todo { background: #e0e7ff; }
     .progress { background: #fff4cc; }
@@ -71,159 +83,120 @@
     .assignee:hover { opacity: 0.85; }
 
     .hint { font-size: 12px; color:#666; margin-top: 6px; }
+
+    .sessionbar{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+      margin: 0 0 12px 0;
+    }
+    .sessionpill{
+      background:white; border:1px solid rgba(0,0,0,0.08);
+      padding: 8px 12px; border-radius: 999px; font-size: 13px;
+    }
   </style>
 </head>
+
 <body>
-
-<!-- ================= LOGIN ================= -->
-<div id="loginBox" style="background:white;padding:20px;border-radius:6px;width:300px;margin-bottom:20px;">
-  <h3>Iniciar sesión</h3>
-
-  <select id="loginUser" style="width:100%; margin-bottom:10px;"></select>
-
-  <button onclick="login()">Entrar</button>
-</div>
-
-<div id="appContent" style="display:none;">
-<!-- TODO TU HTML EXISTENTE VA AQUÍ ABAJO -->
-
 
 <h1>Gestor de tareas</h1>
 
-<div class="form">
-  <input id="title" placeholder="Título de la tarea">
-  <select id="status">
-    <option value="TODO">TODO</option>
-    <option value="IN_PROGRESS">IN_PROGRESS</option>
-    <option value="DONE">DONE</option>
-  </select>
-  <input id="estimate" type="number" min="0" step="1" placeholder="Estimado (min)" style="width:140px;">
-  <select id="assignOne" style="min-width:180px;">
-    <option value="">Asignar a (opcional)</option>
-  </select>
-  <button onclick="createTask()">Crear</button>
-  <button onclick="checkHealth()">Probar /health</button>
-  <span id="msg"></span>
-</div>
-
-<p id="healthStatus"></p>
-
-<div class="wipbar">
-  <div class="wip-left">
-    <span class="wip-count" id="wipCount">IN_PROGRESS: 0/5</span>
-    <span class="small">Límite de WIP (tareas en progreso)</span>
-  </div>
-  <div class="wip-right">
-    <label class="small" for="wipLimit">Límite:</label>
-    <input id="wipLimit" type="number" min="1" step="1" value="5" style="width:80px;">
-    <button onclick="applyWipLimit()">Aplicar</button>
+<!-- ================= LOGIN ================= -->
+<div id="loginBox">
+  <h3>Iniciar sesión</h3>
+  <select id="loginUser"></select>
+  <button onclick="login()">Entrar</button>
+  <div class="hint" style="margin-top:10px;">
+    Selecciona tu usuario para aplicar permisos por rol.
   </div>
 </div>
 
-<!-- ✅ Participantes + Tablero -->
-<div class="grid2">
-  <div class="card">
-    <h3 style="margin: 0 0 10px;">Participantes</h3>
+<!-- ================= APP CONTENT ================= -->
+<div id="appContent" style="display:none;">
 
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-      <input id="pName" placeholder="Nombre" style="flex:1; min-width:140px;">
-      <select id="pRole" style="min-width:160px;">
-        <option value="member" selected>member</option>
-        <option value="visualizer">visualizer</option>
-      </select>
-      <button onclick="addParticipant()">Agregar</button>
+  <div class="sessionbar">
+    <div class="sessionpill" id="sessionInfo">Sesión: —</div>
+    <button onclick="logout()">Cerrar sesión</button>
+  </div>
+
+  <div class="form">
+    <input id="title" placeholder="Título de la tarea">
+    <select id="status">
+      <option value="TODO">TODO</option>
+      <option value="IN_PROGRESS">IN_PROGRESS</option>
+      <option value="DONE">DONE</option>
+    </select>
+    <input id="estimate" type="number" min="0" step="1" placeholder="Estimado (min)" style="width:140px;">
+    <select id="assignOne" style="min-width:180px;">
+      <option value="">Asignar a (opcional)</option>
+    </select>
+    <button id="btnCreateTask" onclick="createTask()">Crear</button>
+    <button onclick="checkHealth()">Probar /health</button>
+    <span id="msg"></span>
+  </div>
+
+  <p id="healthStatus"></p>
+
+  <div class="wipbar">
+    <div class="wip-left">
+      <span class="wip-count" id="wipCount">IN_PROGRESS: 0/5</span>
+      <span class="small">Límite de WIP (tareas en progreso)</span>
     </div>
-
-    <div class="hint">Arrastra un participante a una tarea para asignarlo.</div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Rol</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="participantsBody"></tbody>
-    </table>
-  </div>
-
-  <div class="card">
-    <h3 style="margin: 0 0 10px;">Tablero</h3>
-    <div class="board">
-      <div class="col">
-        <h3>TODO</h3>
-        <div class="lane" id="todoLane" data-status="TODO"></div>
-      </div>
-
-      <div class="col">
-        <h3>IN_PROGRESS</h3>
-        <div class="lane" id="progressLane" data-status="IN_PROGRESS"></div>
-      </div>
-
-      <div class="col">
-        <h3>DONE</h3>
-        <div class="lane" id="doneLane" data-status="DONE"></div>
-      </div>
+    <div class="wip-right">
+      <label class="small" for="wipLimit">Límite:</label>
+      <input id="wipLimit" type="number" min="1" step="1" value="5" style="width:80px;">
+      <button id="btnApplyWip" onclick="applyWipLimit()">Aplicar</button>
     </div>
   </div>
-</div>
+
+  <!-- ✅ Participantes + Tablero -->
+  <div class="grid2">
+    <div class="card" id="participantsCard">
+      <h3 style="margin: 0 0 10px;">Participantes</h3>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <input id="pName" placeholder="Nombre" style="flex:1; min-width:140px;">
+        <select id="pRole" style="min-width:160px;">
+          <option value="member" selected>member</option>
+          <option value="visualizer">visualizer</option>
+        </select>
+        <button id="btnAddParticipant" onclick="addParticipant()">Agregar</button>
+      </div>
+
+      <div class="hint">Arrastra un participante a una tarea para asignarlo.</div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Rol</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="participantsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3 style="margin: 0 0 10px;">Tablero</h3>
+      <div class="board">
+        <div class="col">
+          <h3>TODO</h3>
+          <div class="lane" id="todoLane" data-status="TODO"></div>
+        </div>
+
+        <div class="col">
+          <h3>IN_PROGRESS</h3>
+          <div class="lane" id="progressLane" data-status="IN_PROGRESS"></div>
+        </div>
+
+        <div class="col">
+          <h3>DONE</h3>
+          <div class="lane" id="doneLane" data-status="DONE"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <script>
-
-async function loadUsersForLogin(){
-  const res = await fetch(API + "/participants");
-  const users = await res.json();
-
-  const sel = document.getElementById("loginUser");
-  sel.innerHTML = "";
-
-  users.forEach(u=>{
-    const opt = document.createElement("option");
-    opt.value = u.name;
-    opt.textContent = `${u.name} (${u.role})`;
-    sel.appendChild(opt);
-  });
-}
-
-function login(){
-  const sel = document.getElementById("loginUser");
-  currentUser = sel.value;
-
-  fetch(API + "/participants")
-    .then(r=>r.json())
-    .then(data=>{
-      const u = data.find(x=>x.name===currentUser);
-      if(!u){
-        alert("Usuario inválido");
-        return;
-      }
-      currentRole = u.role;
-
-      document.getElementById("loginBox").style.display="none";
-      document.getElementById("appContent").style.display="block";
-
-      applyPermissions();
-    });
-}
-
-function applyPermissions(){
-
-  // Visualizer → solo ver
-  if(currentRole==="visualizer"){
-    document.querySelectorAll("input, select, button").forEach(el=>{
-      el.disabled = true;
-    });
-  }
-
-  // Member → no crear tareas
-  if(currentRole==="member"){
-    document.querySelector("button[onclick='createTask()']").disabled=true;
-  }
-
-  // Product Owner → todo habilitado
-}
-
 const API = "http://127.0.0.1:5000";
 
 const msg = document.getElementById("msg");
@@ -238,6 +211,8 @@ const participantsBody = document.getElementById("participantsBody");
 const wipCountEl = document.getElementById("wipCount");
 const wipLimitInput = document.getElementById("wipLimit");
 
+const sessionInfo = document.getElementById("sessionInfo");
+
 let draggedTaskId = null;
 let draggedParticipant = null; // {id, name}
 let tasksCache = [];
@@ -246,9 +221,25 @@ let tickTimer = null;
 
 let wipLimit = 5;
 
+// LOGIN STATE
 let currentUser = null;
 let currentRole = null;
 
+// ---------------- AUTH HELPERS ----------------
+function authHeaders(extra = {}) {
+  return { ...extra, "X-User": currentUser || "" };
+}
+
+function isPO(){ return currentRole === "product_owner"; }
+function isMember(){ return currentRole === "member"; }
+function isViewer(){ return currentRole === "visualizer"; }
+
+function canEditTask(t){
+  if (isPO()) return true;
+  if (isViewer()) return false;
+  const ass = Array.isArray(t.assignees) ? t.assignees : [];
+  return ass.includes(currentUser);
+}
 
 // -------- WIP init --------
 (function initWip(){
@@ -261,6 +252,12 @@ let currentRole = null;
 })();
 
 function applyWipLimit(){
+  if (!isPO()){
+    setMsg("Solo el Product Owner puede cambiar el WIP", false);
+    wipLimitInput.value = wipLimit;
+    return;
+  }
+
   const n = parseInt(wipLimitInput.value, 10);
   if (isNaN(n) || n < 1){
     setMsg("El límite debe ser un número >= 1", false);
@@ -295,6 +292,103 @@ function updateWipCounter(){
   return inprogCount;
 }
 
+// ---------------- LOGIN ----------------
+async function loadUsersForLogin(){
+  try{
+    const res = await fetch(API + "/participants");
+    const users = await res.json();
+    const sel = document.getElementById("loginUser");
+    sel.innerHTML = "";
+    users.forEach(u=>{
+      const opt = document.createElement("option");
+      opt.value = u.name;
+      opt.textContent = `${u.name} (${u.role})`;
+      sel.appendChild(opt);
+    });
+  }catch(e){
+    // si backend no corre aún
+  }
+}
+
+async function login(){
+  const sel = document.getElementById("loginUser");
+  currentUser = sel.value;
+
+  try{
+    const res = await fetch(API + "/participants");
+    const users = await res.json();
+    const u = users.find(x => x.name === currentUser);
+    if (!u){
+      alert("Usuario inválido");
+      return;
+    }
+    currentRole = u.role;
+
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("appContent").style.display = "block";
+
+    sessionInfo.textContent = `Sesión: ${currentUser} (${currentRole})`;
+
+    applyPermissions();
+    await loadAll();
+  }catch(e){
+    alert("No se pudo conectar al backend");
+  }
+}
+
+function logout(){
+  currentUser = null;
+  currentRole = null;
+  document.getElementById("appContent").style.display = "none";
+  document.getElementById("loginBox").style.display = "block";
+  loadUsersForLogin();
+}
+
+// ---------------- PERMISSIONS UI ----------------
+function applyPermissions(){
+  // Visualizer: nada
+  if (isViewer()){
+    // deshabilitar todo lo interactivo
+    document.querySelectorAll("#appContent input, #appContent select, #appContent button").forEach(el=>{
+      el.disabled = true;
+    });
+    // pero permitir "Cerrar sesión"
+    const btns = document.querySelectorAll("#appContent button");
+    btns.forEach(b=>{
+      if (b.textContent && b.textContent.toLowerCase().includes("cerrar sesión")) b.disabled = false;
+    });
+    return;
+  }
+
+  // Member: no crear tareas, no participantes, no WIP
+  if (isMember()){
+    const btnCreate = document.getElementById("btnCreateTask");
+    if (btnCreate) btnCreate.disabled = true;
+
+    const pName = document.getElementById("pName");
+    const pRole = document.getElementById("pRole");
+    const btnAddP = document.getElementById("btnAddParticipant");
+    if (pName) pName.disabled = true;
+    if (pRole) pRole.disabled = true;
+    if (btnAddP) btnAddP.disabled = true;
+
+    const wipI = document.getElementById("wipLimit");
+    const wipB = document.getElementById("btnApplyWip");
+    if (wipI) wipI.disabled = true;
+    if (wipB) wipB.disabled = true;
+
+    // Form de creación deshabilitado (excepto salud/demo)
+    document.getElementById("title").disabled = true;
+    document.getElementById("status").disabled = true;
+    document.getElementById("estimate").disabled = true;
+    document.getElementById("assignOne").disabled = true;
+
+    return;
+  }
+
+  // PO: todo activo (default)
+}
+
 // ---------------------- Backend calls: participants ----------------------
 async function fetchParticipants(){
   const res = await fetch(API + "/participants");
@@ -302,6 +396,11 @@ async function fetchParticipants(){
 }
 
 async function addParticipant(){
+  if (!isPO()){
+    setMsg("Solo el Product Owner puede agregar participantes", false);
+    return;
+  }
+
   const name = document.getElementById("pName").value.trim();
   const role = document.getElementById("pRole").value;
 
@@ -309,7 +408,7 @@ async function addParticipant(){
 
   const res = await fetch(API + "/participants", {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
+    headers: authHeaders({"Content-Type":"application/json"}),
     body: JSON.stringify({ name, role })
   });
   const data = await res.json();
@@ -318,14 +417,17 @@ async function addParticipant(){
   document.getElementById("pName").value = "";
   setMsg(`Participante agregado: ${data.name}`, true);
   await loadAll();
-  loadUsersForLogin();
-
 }
 
 async function patchParticipant(pid, payload){
+  if (!isPO()){
+    setMsg("Solo el Product Owner puede editar participantes", false);
+    return null;
+  }
+
   const res = await fetch(`${API}/participants/${pid}`, {
     method: "PATCH",
-    headers: {"Content-Type":"application/json"},
+    headers: authHeaders({"Content-Type":"application/json"}),
     body: JSON.stringify(payload)
   });
   const data = await res.json();
@@ -334,17 +436,19 @@ async function patchParticipant(pid, payload){
 }
 
 async function deleteParticipant(pid){
-  const res = await fetch(`${API}/participants/${pid}`, { method:"DELETE" });
+  if (!isPO()){
+    setMsg("Solo el Product Owner puede eliminar participantes", false);
+    return;
+  }
+
+  const res = await fetch(`${API}/participants/${pid}`, {
+    method:"DELETE",
+    headers: authHeaders({})
+  });
   const data = await res.json();
   if (!res.ok) { setMsg(data.error || "Error al borrar participante", false); return; }
   setMsg("Participante eliminado", true);
   await loadAll();
-}
-
-function rolePillClass(role){
-  if (role === "product_owner") return "role-po";
-  if (role === "visualizer") return "role-v";
-  return "role-m";
 }
 
 function renderParticipants(){
@@ -353,27 +457,32 @@ function renderParticipants(){
   participantsCache.forEach(p => {
     const tr = document.createElement("tr");
     tr.className = "p-row";
-    tr.setAttribute("draggable", "true");
+
+    // Drag participant solo PO
+    tr.setAttribute("draggable", isPO() ? "true" : "false");
     tr.dataset.pid = p.id;
 
-    // drag participant
-    tr.addEventListener("dragstart", (e) => {
-      draggedParticipant = { id: p.id, name: p.name };
-      e.dataTransfer.effectAllowed = "copy";
-      e.dataTransfer.setData("application/x-participant", JSON.stringify(draggedParticipant));
-    });
-    tr.addEventListener("dragend", () => { draggedParticipant = null; });
+    if (isPO()){
+      tr.addEventListener("dragstart", (e) => {
+        draggedParticipant = { id: p.id, name: p.name };
+        e.dataTransfer.effectAllowed = "copy";
+        e.dataTransfer.setData("application/x-participant", JSON.stringify(draggedParticipant));
+      });
+      tr.addEventListener("dragend", () => { draggedParticipant = null; });
+    }
 
     const tdName = document.createElement("td");
     const nameInput = document.createElement("input");
     nameInput.value = p.name;
     nameInput.style.width = "95%";
+    nameInput.disabled = !isPO(); // solo PO puede editar
     nameInput.addEventListener("blur", async () => {
+      if (!isPO()) return;
       const newName = nameInput.value.trim();
       if (!newName) { setMsg("Nombre vacío", false); nameInput.value = p.name; return; }
       if (newName !== p.name) {
         await patchParticipant(p.id, { name: newName });
-        await loadAll(); // actualiza y evita inconsistencias
+        await loadAll();
       }
     });
     tdName.appendChild(nameInput);
@@ -386,13 +495,9 @@ function renderParticipants(){
       <option value="visualizer">visualizer</option>
     `;
     roleSelect.value = p.role;
-
-    // Si es PO, bloqueamos edición del rol
-    if (p.role === "product_owner") {
-      roleSelect.disabled = true;
-    }
-
+    roleSelect.disabled = !isPO() || p.role === "product_owner";
     roleSelect.addEventListener("change", async () => {
+      if (!isPO()) return;
       await patchParticipant(p.id, { role: roleSelect.value });
       await loadAll();
     });
@@ -402,6 +507,7 @@ function renderParticipants(){
     const delBtn = document.createElement("button");
     delBtn.textContent = "X";
     delBtn.title = "Eliminar";
+    delBtn.disabled = !isPO() || p.role === "product_owner";
     delBtn.addEventListener("click", () => deleteParticipant(p.id));
     tdDel.appendChild(delBtn);
 
@@ -420,7 +526,7 @@ function renderAssigneeDropdown(){
   sel.innerHTML = `<option value="">Asignar a (opcional)</option>`;
   participantsCache.forEach(p => {
     const opt = document.createElement("option");
-    opt.value = p.name; // guardamos el nombre
+    opt.value = p.name;
     opt.textContent = `${p.name} (${p.role})`;
     sel.appendChild(opt);
   });
@@ -431,7 +537,7 @@ function renderAssigneeDropdown(){
 async function patchTask(taskId, payload){
   const res = await fetch(`${API}/tasks/${taskId}`, {
     method: "PATCH",
-    headers: {"Content-Type":"application/json"},
+    headers: authHeaders({"Content-Type":"application/json"}),
     body: JSON.stringify(payload)
   });
   const data = await res.json();
@@ -448,6 +554,10 @@ async function moveTask(taskId, newStatus){
 }
 
 async function assignParticipantToTask(taskId, name){
+  if (!isPO()){
+    setMsg("Solo el Product Owner puede asignar tareas", false);
+    return;
+  }
   const updated = await patchTask(taskId, { add_assignee: name });
   if (updated) {
     setMsg(`Asignado: ${name} → #${taskId}`, true);
@@ -456,6 +566,10 @@ async function assignParticipantToTask(taskId, name){
 }
 
 async function removeAssigneeFromTask(taskId, name){
+  if (!isPO()){
+    setMsg("Solo el Product Owner puede quitar asignaciones", false);
+    return;
+  }
   const updated = await patchTask(taskId, { remove_assignee: name });
   if (updated) {
     setMsg(`Quitado: ${name} de #${taskId}`, true);
@@ -467,12 +581,17 @@ async function removeAssigneeFromTask(taskId, name){
 function makeTaskDiv(t){
   const div = document.createElement("div");
   div.className = "task";
-  div.setAttribute("draggable", "true");
   div.dataset.id = t.id;
 
-  // ✅ Drop target for participant assignment
+  const editable = canEditTask(t);
+
+  // draggable solo si tiene permisos (y no viewer)
+  div.setAttribute("draggable", editable ? "true" : "false");
+  if (!editable) div.classList.add("disabled");
+
+  // ✅ Drop target for participant assignment (solo PO)
   div.addEventListener("dragover", (e) => {
-    // Permitir drop si viene un participante
+    if (!isPO()) return;
     const types = Array.from(e.dataTransfer.types || []);
     if (types.includes("application/x-participant") || draggedParticipant) {
       e.preventDefault();
@@ -482,6 +601,7 @@ function makeTaskDiv(t){
   });
   div.addEventListener("dragleave", () => div.classList.remove("drop-task-hover"));
   div.addEventListener("drop", async (e) => {
+    if (!isPO()) return;
     const types = Array.from(e.dataTransfer.types || []);
     if (types.includes("application/x-participant") || draggedParticipant) {
       e.preventDefault();
@@ -489,9 +609,7 @@ function makeTaskDiv(t){
 
       let payload = draggedParticipant;
       if (!payload) {
-        try {
-          payload = JSON.parse(e.dataTransfer.getData("application/x-participant"));
-        } catch {}
+        try { payload = JSON.parse(e.dataTransfer.getData("application/x-participant")); } catch {}
       }
       if (payload && payload.name) {
         await assignParticipantToTask(t.id, payload.name);
@@ -501,6 +619,10 @@ function makeTaskDiv(t){
 
   // Drag task (para mover entre columnas)
   div.addEventListener("dragstart", (e) => {
+    if (!editable) {
+      e.preventDefault();
+      return;
+    }
     draggedTaskId = Number(div.dataset.id);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(draggedTaskId));
@@ -510,9 +632,12 @@ function makeTaskDiv(t){
   // Título (doble click para editar)
   const title = document.createElement("div");
   title.style.fontWeight = "bold";
-  title.style.cursor = "text";
+  title.style.cursor = editable ? "text" : "default";
   title.textContent = `#${t.id} ${t.title}`;
-  title.addEventListener("dblclick", () => startEditTitle(t.id, t.title));
+  title.addEventListener("dblclick", () => {
+    if (!editable) return;
+    startEditTitle(t.id, t.title);
+  });
   div.appendChild(title);
 
   // Estimado + tiempos
@@ -575,15 +700,20 @@ function makeTaskDiv(t){
       const chip = document.createElement("span");
       chip.className = "assignee";
       chip.textContent = name;
-      chip.title = "Click para quitar (opcional)";
-      chip.addEventListener("click", () => removeAssigneeFromTask(t.id, name));
+      chip.title = isPO() ? "Click para quitar" : "";
+      chip.addEventListener("click", () => {
+        if (!isPO()) return;
+        removeAssigneeFromTask(t.id, name);
+      });
       wrap.appendChild(chip);
     });
     div.appendChild(wrap);
   } else {
     const hint = document.createElement("div");
     hint.className = "hint";
-    hint.textContent = "Tip: arrastra un participante aquí para asignarlo.";
+    hint.textContent = isPO()
+      ? "Tip: arrastra un participante aquí para asignarlo."
+      : "Sin asignación.";
     div.appendChild(hint);
   }
 
@@ -626,8 +756,13 @@ function startTicker(){
   }, 1000);
 }
 
-// Crear tarea
+// Crear tarea (solo PO)
 async function createTask() {
+  if (!isPO()){
+    setMsg("Solo el Product Owner puede crear tareas", false);
+    return;
+  }
+
   setMsg("");
 
   const title = document.getElementById("title").value.trim();
@@ -635,10 +770,9 @@ async function createTask() {
   const estimateMin = document.getElementById("estimate").value;
   const assignName = document.getElementById("assignOne").value;
 
-
   const res = await fetch(API + "/tasks", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: authHeaders({"Content-Type": "application/json"}),
     body: JSON.stringify({ title, status, estimate_min: estimateMin })
   });
 
@@ -683,6 +817,10 @@ function startEditTitle(taskId, currentTitle){
   const card = document.querySelector(`.task[data-id="${taskId}"]`);
   if (!card) return;
 
+  // validar permisos
+  const t = tasksCache.find(x => x.id === taskId);
+  if (!t || !canEditTask(t)) return;
+
   const titleDiv = card.firstChild;
 
   const input = document.createElement("input");
@@ -717,16 +855,21 @@ function startEditTitle(taskId, currentTitle){
   input.addEventListener("blur", save);
 }
 
-// Drag & drop lanes (WIP limit)
+// Drag & drop lanes (WIP limit + permisos)
 function enableDrop(lane){
   lane.addEventListener("dragover", (e) => {
-    // Solo para mover TAREAS entre columnas:
     if (draggedTaskId == null) return;
 
+    if (isViewer()) return;
+
+    const dragged = tasksCache.find(t => t.id === draggedTaskId);
+    if (isMember() && dragged && !canEditTask(dragged)) return;
+
     const targetStatus = lane.dataset.status;
+
+    // WIP limit
     if (targetStatus === "IN_PROGRESS") {
       const inprogCount = tasksCache.filter(t => t.status === "IN_PROGRESS").length;
-      const dragged = tasksCache.find(t => t.id === draggedTaskId);
       const draggedWasInProg = dragged && dragged.status === "IN_PROGRESS";
       if (inprogCount >= wipLimit && !draggedWasInProg) return;
     }
@@ -741,10 +884,20 @@ function enableDrop(lane){
   lane.addEventListener("drop", (e) => {
     if (draggedTaskId == null) return;
 
+    if (isViewer()) return;
+
+    const dragged = tasksCache.find(t => t.id === draggedTaskId);
+    if (isMember() && dragged && !canEditTask(dragged)) {
+      setMsg("Solo puedes mover tus tareas asignadas", false);
+      lane.classList.remove("drop-hover");
+      return;
+    }
+
     const targetStatus = lane.dataset.status;
+
+    // WIP limit
     if (targetStatus === "IN_PROGRESS") {
       const inprogCount = tasksCache.filter(t => t.status === "IN_PROGRESS").length;
-      const dragged = tasksCache.find(t => t.id === draggedTaskId);
       const draggedWasInProg = dragged && dragged.status === "IN_PROGRESS";
       if (inprogCount >= wipLimit && !draggedWasInProg) {
         setMsg(`Límite alcanzado: IN_PROGRESS ${inprogCount}/${wipLimit}`, false);
@@ -771,9 +924,8 @@ async function loadAll(){
   await loadTasks();
 }
 
-loadAll();
+// INIT: primero llenar login
 loadUsersForLogin();
-
 </script>
 
 </div>
