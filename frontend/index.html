@@ -75,6 +75,19 @@
 </head>
 <body>
 
+<!-- ================= LOGIN ================= -->
+<div id="loginBox" style="background:white;padding:20px;border-radius:6px;width:300px;margin-bottom:20px;">
+  <h3>Iniciar sesión</h3>
+
+  <select id="loginUser" style="width:100%; margin-bottom:10px;"></select>
+
+  <button onclick="login()">Entrar</button>
+</div>
+
+<div id="appContent" style="display:none;">
+<!-- TODO TU HTML EXISTENTE VA AQUÍ ABAJO -->
+
+
 <h1>Gestor de tareas</h1>
 
 <div class="form">
@@ -157,6 +170,60 @@
 </div>
 
 <script>
+
+async function loadUsersForLogin(){
+  const res = await fetch(API + "/participants");
+  const users = await res.json();
+
+  const sel = document.getElementById("loginUser");
+  sel.innerHTML = "";
+
+  users.forEach(u=>{
+    const opt = document.createElement("option");
+    opt.value = u.name;
+    opt.textContent = `${u.name} (${u.role})`;
+    sel.appendChild(opt);
+  });
+}
+
+function login(){
+  const sel = document.getElementById("loginUser");
+  currentUser = sel.value;
+
+  fetch(API + "/participants")
+    .then(r=>r.json())
+    .then(data=>{
+      const u = data.find(x=>x.name===currentUser);
+      if(!u){
+        alert("Usuario inválido");
+        return;
+      }
+      currentRole = u.role;
+
+      document.getElementById("loginBox").style.display="none";
+      document.getElementById("appContent").style.display="block";
+
+      applyPermissions();
+    });
+}
+
+function applyPermissions(){
+
+  // Visualizer → solo ver
+  if(currentRole==="visualizer"){
+    document.querySelectorAll("input, select, button").forEach(el=>{
+      el.disabled = true;
+    });
+  }
+
+  // Member → no crear tareas
+  if(currentRole==="member"){
+    document.querySelector("button[onclick='createTask()']").disabled=true;
+  }
+
+  // Product Owner → todo habilitado
+}
+
 const API = "http://127.0.0.1:5000";
 
 const msg = document.getElementById("msg");
@@ -178,6 +245,10 @@ let participantsCache = [];
 let tickTimer = null;
 
 let wipLimit = 5;
+
+let currentUser = null;
+let currentRole = null;
+
 
 // -------- WIP init --------
 (function initWip(){
@@ -247,6 +318,8 @@ async function addParticipant(){
   document.getElementById("pName").value = "";
   setMsg(`Participante agregado: ${data.name}`, true);
   await loadAll();
+  loadUsersForLogin();
+
 }
 
 async function patchParticipant(pid, payload){
@@ -699,7 +772,10 @@ async function loadAll(){
 }
 
 loadAll();
+loadUsersForLogin();
+
 </script>
 
+</div>
 </body>
 </html>

@@ -88,49 +88,33 @@ def get_tasks():
 
 @app.route("/tasks", methods=["POST"])
 def create_task():
-    global next_task_id
+    global next_task_id   # 👈 MOVER ARRIBA
 
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify(error="JSON requerido"), 400
+    user = get_user()
+    if not user or not is_po(user):
+        return jsonify(error="Solo Product Owner puede crear tareas"),403
 
-    title = str(data.get("title", "")).strip()
-    status = str(data.get("status", "TODO")).strip().upper()
-    estimate_min = data.get("estimate_min", 0)
-
+    data = request.get_json()
+    title = data.get("title","").strip()
     if not title:
-        return jsonify(error="El título no puede estar vacío"), 400
-    if status not in VALID_STATUSES:
-        return jsonify(error="Estado inválido"), 400
-
-    try:
-        estimate_min = int(estimate_min)
-        if estimate_min < 0:
-            return jsonify(error="El tiempo estimado no puede ser negativo"), 400
-    except Exception:
-        return jsonify(error="El tiempo estimado debe ser un entero (minutos)"), 400
+        return jsonify(error="Título vacío"),400
 
     t = {
         "id": next_task_id,
         "title": title,
-        "status": status,
-        "estimate_min": estimate_min,
-        "started_at": None,
-        "completed_at": None,
-        "actual_sec": None,
-        "assignees": []
+        "status":"TODO",
+        "estimate_min":0,
+        "started_at":None,
+        "completed_at":None,
+        "actual_sec":None,
+        "assignees":[]
     }
 
-    if status == "IN_PROGRESS":
-        t["started_at"] = now_sec()
-    elif status == "DONE":
-        t["started_at"] = now_sec()
-        t["completed_at"] = now_sec()
-        t["actual_sec"] = 0
-
     tasks.append(t)
-    next_task_id += 1
-    return jsonify(t), 201
+    next_task_id += 1   # 👈 ahora sí es válido
+
+    return jsonify(t),201
+
 
 
 @app.route("/tasks/<int:task_id>", methods=["PATCH"])
